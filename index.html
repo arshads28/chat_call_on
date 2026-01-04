@@ -239,16 +239,24 @@
                 return;
             }
         
-            // callType = type;
-            // activeCall = true;
-            // document.getElementById("video-container").style.display = "flex";
-            // await initMedia(type === "video");
-            
-            // Send invite to everyone in room (no specific target yet)
+            callType = type; // Store intention
+
+            // 1. SHOW OUTGOING SCREEN IMMEDIATELY
+            document.getElementById("outgoing-call").style.display = "flex";
+        
+            // 2. Send invite as before
             sendSignal({ type: "call_invite", callType: type });
         }
 
+        function cancelCall() {
+            // 1. Hide outgoing screen
+            document.getElementById("outgoing-call").style.display = "none";
 
+            // 2. Tell the other side we gave up (stops their ringing)
+            sendSignal({ type: "peer_left" }); 
+
+            activeCall = false;
+        }
         function showToast(text) {
             const t = document.createElement("div");
             t.innerText = text;
@@ -274,43 +282,48 @@
         
             // 🔔 INCOMING CALL
             if (data.type === "call_invite") {
-                if (activeCall) return;
-                if (sender === username) return;
+                    if (activeCall) return;
+                    if (sender === username) return;
             
-                pendingCaller = sender;
-                pendingCallType = data.callType;
+                    pendingCaller = sender;
+                    pendingCallType = data.callType;
             
-                document.getElementById("caller-name").innerText = sender;
-                document.getElementById("call-type").innerText =
-                    data.callType === "video" ? "Incoming Video Call" : "Incoming Voice Call";
+                    document.getElementById("caller-name").innerText = sender;
+                    document.getElementById("call-type").innerText =
+                        data.callType === "video" ? "Incoming Video Call" : "Incoming Voice Call";
             
-                document.getElementById("incoming-call").style.display = "flex";
-                return; // ✅ ONLY RING
-            }
+                    document.getElementById("incoming-call").style.display = "flex";
+                    return; 
+                }
 
         
             // ✅ USER ACCEPTED
             if (data.type === "call_accept") {
-                if (!activeCall) {
-                    activeCall = true;
-                    document.getElementById("video-container").style.display = "flex";
-                    await initMedia(callType === "video");
+                    // HIDE THE "CALLING..." SCREEN
+                    document.getElementById("outgoing-call").style.display = "none";
+            
+                    if (!activeCall) {
+                        activeCall = true;
+                        document.getElementById("video-container").style.display = "flex";
+                        await initMedia(callType === "video");
+                    }
+                
+                    const pc = createPeerConnection(sender);
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    sendSignal({ type: "offer", sdp: offer }, sender);
+                    return;
                 }
             
-                const pc = createPeerConnection(sender);
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                sendSignal({ type: "offer", sdp: offer }, sender);
-                return;
-            }
-        
-            // ❌ USER DECLINED
-            if (data.type === "call_decline") {
-                showToast(`${sender} declined the call`);
-                addMessage(`${sender} declined the call`, 'system', 'System');
-                // cleanupCall();
-                return;
-            }
+                // ❌ USER DECLINED
+                if (data.type === "call_decline") {
+                    // HIDE THE "CALLING..." SCREEN
+                    document.getElementById("outgoing-call").style.display = "none";
+                
+                    showToast(`${sender} declined the call`);
+                    addMessage(`${sender} declined the call`, 'system', 'System');
+                    return;
+                }
         
             // 📡 WEBRTC FLOW
             if (data.type === "offer") {
@@ -337,17 +350,20 @@
             }
 
             if (data.type === "peer_left") {
-                if (peerConnections[sender]) {
-                    peerConnections[sender].close();
-                    delete peerConnections[sender];
+                    // IF WE ARE RINGING (INCOMING), HIDE IT BECAUSE THEY CANCELED
+                    document.getElementById("incoming-call").style.display = "none"; 
+                    
+                    // Existing logic
+                    if (peerConnections[sender]) {
+                        peerConnections[sender].close();
+                        delete peerConnections[sender];
+                    }
+                
+                    if (Object.keys(peerConnections).length === 0) {
+                        cleanupCall();
+                    }
+                    return;
                 }
-            
-                // AUTO END IF NO ONE LEFT
-                if (Object.keys(peerConnections).length === 0) {
-                    cleanupCall();
-                }
-                return;
-            }
 
             // if (data.type === "call_end") {
             //     cleanupCall();
@@ -499,6 +515,47 @@
         ">Decline</button>
     </div>
 </div>
+
+
+<div id="outgoing-call" style="
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.9);
+    z-index:9999;
+    color:white;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    font-family:system-ui;
+">
+    <div style="
+        width: 100px; height: 100px; background: #333; border-radius: 50%; 
+        display: flex; align-items: center; justify-content: center; font-size: 40px; margin-bottom: 20px;
+        animation: pulse 1.5s infinite;
+    ">📞</div>
+    <h2 style="margin-bottom:10px;">Calling...</h2>
+    <p style="opacity:.7; margin-bottom:40px;">Waiting for response</p>
+
+    <button onclick="cancelCall()" style="
+        background:#ff3b30;
+        border:none;
+        color:white;
+        font-size:18px;
+        padding:15px 40px;
+        border-radius:30px;
+        cursor:pointer;
+        font-weight: bold;
+    ">End Call</button>
+</div>
+
+<style>
+    @keyframes pulse {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
+        70% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(255, 255, 255, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+    }
+</style>
 
 </body>
 </html>
