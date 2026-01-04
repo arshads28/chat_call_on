@@ -131,6 +131,9 @@
     </div>
 
     <script>
+        let pendingCaller = null;
+        let pendingCallType = null;
+
         let ws;
         let username = "";
         let currentRoom = "global";
@@ -141,6 +144,10 @@
         let localStream;
         const peerConnections = {};
         const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("incoming-call").style.display = "none";
+        });
 
         function login() {
             const input = document.getElementById("username-input");
@@ -232,10 +239,10 @@
                 return;
             }
         
-            callType = type;
-            activeCall = true;
-            document.getElementById("video-container").style.display = "flex";
-            await initMedia(type === "video");
+            // callType = type;
+            // activeCall = true;
+            // document.getElementById("video-container").style.display = "flex";
+            // await initMedia(type === "video");
             
             // Send invite to everyone in room (no specific target yet)
             sendSignal({ type: "call_invite", callType: type });
@@ -267,34 +274,32 @@
         
             // 🔔 INCOMING CALL
             if (data.type === "call_invite") {
-                if (activeCall) return; // Busy
-                // Don't alert yourself
+                if (activeCall) return;
                 if (sender === username) return;
             
-                const accept = confirm(`${sender} is calling (${data.callType === "video" ? "Video" : "Voice"}). Accept?`);
+                pendingCaller = sender;
+                pendingCallType = data.callType;
             
-                if (!accept) {
-                    sendSignal({ type: "call_decline" }, sender);
-                    return;
-                }
+                document.getElementById("caller-name").innerText = sender;
+                document.getElementById("call-type").innerText =
+                    data.callType === "video" ? "Incoming Video Call" : "Incoming Voice Call";
             
-                activeCall = true;
-                callType = data.callType;
-            
-                document.getElementById("video-container").style.display = "flex";
-                await initMedia(callType === "video");
-            
-                // TARGET THE ACCEPTANCE TO THE CALLER
-                sendSignal({ type: "call_accept" }, sender);
-                return;
+                document.getElementById("incoming-call").style.display = "flex";
+                return; // ✅ ONLY RING
             }
+
         
             // ✅ USER ACCEPTED
             if (data.type === "call_accept") {
+                if (!activeCall) {
+                    activeCall = true;
+                    document.getElementById("video-container").style.display = "flex";
+                    await initMedia(callType === "video");
+                }
+            
                 const pc = createPeerConnection(sender);
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
-                // TARGET THE OFFER TO THE PERSON WHO ACCEPTED
                 sendSignal({ type: "offer", sdp: offer }, sender);
                 return;
             }
@@ -336,6 +341,11 @@
                     peerConnections[sender].close();
                     delete peerConnections[sender];
                 }
+            
+                // AUTO END IF NO ONE LEFT
+                if (Object.keys(peerConnections).length === 0) {
+                    cleanupCall();
+                }
                 return;
             }
 
@@ -343,6 +353,31 @@
             //     cleanupCall();
             // }
         }
+
+        async function acceptCall() {
+            document.getElementById("incoming-call").style.display = "none";
+        
+            activeCall = true;
+            callType = pendingCallType;
+        
+            document.getElementById("video-container").style.display = "flex";
+            await initMedia(callType === "video");
+        
+            sendSignal({ type: "call_accept" }, pendingCaller);
+        
+            pendingCaller = null;
+            pendingCallType = null;
+        }
+
+        function declineCall() {
+            document.getElementById("incoming-call").style.display = "none";
+        
+            sendSignal({ type: "call_decline" }, pendingCaller);
+        
+            pendingCaller = null;
+            pendingCallType = null;
+        }
+
 
         async function initMedia(videoEnabled) {
             try {
@@ -426,5 +461,44 @@
             document.getElementById("overlay").classList.toggle("active");
         }
     </script>
+<div id="incoming-call" style="
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.85);
+    z-index:9999;
+    color:white;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    font-family:system-ui;
+">
+    <h2 id="caller-name" style="margin-bottom:10px;"></h2>
+    <p id="call-type" style="opacity:.8;margin-bottom:30px;"></p>
+
+    <div style="display:flex;gap:20px;">
+        <button onclick="acceptCall()" style="
+            background:#22c55e;
+            border:none;
+            color:white;
+            font-size:18px;
+            padding:14px 28px;
+            border-radius:999px;
+            cursor:pointer;
+        ">Accept</button>
+
+        <button onclick="declineCall()" style="
+            background:#ef4444;
+            border:none;
+            color:white;
+            font-size:18px;
+            padding:14px 28px;
+            border-radius:999px;
+            cursor:pointer;
+        ">Decline</button>
+    </div>
+</div>
+
 </body>
 </html>
