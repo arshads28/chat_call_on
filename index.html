@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Chat & Call</title>
 <style>
-    :root { --primary: #0088cc; --bg: #e5ddd5; --sidebar: #17212b; --msg-me: #dcf8c6; --msg-other: #fff; }
+    :root { --primary: #0088cc; --bg: #e5ddd5; --sidebar: #17212b; --sidebar-hover: #2b5278; --msg-me: #dcf8c6; --msg-other: #fff; }
     * { box-sizing: border-box; }
     
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100dvh; display: flex; overflow: hidden; background: #000; }
@@ -16,15 +16,78 @@
     #login-screen button { padding: 15px 30px; font-size: 1.2rem; background: var(--primary); color: white; border: none; border-radius: 8px; }
 
     /* --- LAYOUT --- */
-    .sidebar { width: 300px; background: var(--sidebar); color: white; display: flex; flex-direction: column; border-right: 1px solid #444; }
+    .sidebar { width: 320px; background: var(--sidebar); color: white; display: flex; flex-direction: column; border-right: 1px solid #2b2b2b; }
     .main-chat { flex: 1; display: flex; flex-direction: column; background: var(--bg); position: relative; height: 100%; }
+
+    /* --- SIDEBAR STRUCTURE --- */
+    .sidebar-header { 
+        padding: 15px; background: #232e3c; font-weight: bold; font-size: 18px; 
+        display: flex; align-items: center; justify-content: space-between; height: 60px;
+    }
+
+    #chat-list { flex: 1; overflow-y: auto; padding-top: 5px; }
+    
+    .chat-item {
+        display: flex; align-items: center; padding: 12px 15px; cursor: pointer;
+        border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.2s;
+    }
+    .chat-item:hover { background: #232e3c; }
+    .chat-item.active { background: var(--sidebar-hover); }
+    
+    .chat-avatar {
+        width: 45px; height: 45px; border-radius: 50%; background: #555;
+        display: flex; align-items: center; justify-content: center; font-size: 20px; margin-right: 15px; flex-shrink: 0;
+    }
+    .chat-info { flex: 1; overflow: hidden; }
+    .chat-name { font-weight: bold; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chat-preview { font-size: 13px; color: #aaa; margin-top: 3px; }
+
+    /* --- CONTROLS (Vertical Layout Fix) --- */
+    .controls-container { 
+        padding: 15px; 
+        background: #1f2936; 
+        border-top: 1px solid #333; 
+        display: flex;
+        flex-direction: column; /* VERTICAL STACKING */
+        gap: 15px;
+    }
+    .controls-container label { font-size: 12px; color: #888; display: block; margin-bottom: 5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .input-group { 
+        display: flex; 
+        flex-direction: column; /* Inputs stacked vertically */
+        gap: 8px; 
+        width: 100%;
+    }
+    
+    .input-group input { 
+        width: 100%; 
+        padding: 10px; 
+        border-radius: 5px; 
+        border: none; 
+        background: #0e1621; 
+        color: white; 
+        font-size: 14px; 
+    }
+    
+    .input-group button { 
+        width: 100%;
+        padding: 10px; 
+        background: var(--primary); 
+        color: white; 
+        border: none; 
+        border-radius: 5px; 
+        cursor: pointer; 
+        font-weight: bold;
+    }
+    .input-group button:hover { opacity: 0.9; }
+
 
     /* --- VIDEO CALL OVERLAY --- */
     #video-container { 
         display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
         background: #000; z-index: 500; flex-direction: column; align-items: center; justify-content: center;
     }
-    
     #remoteVideo { width: 100%; height: 100%; object-fit: contain; background: #000; }
     #localVideo { 
         position: absolute; bottom: 100px; right: 20px; width: 120px; height: 160px; 
@@ -46,34 +109,18 @@
     .message { max-width: 80%; padding: 8px 12px; border-radius: 8px; font-size: 15px; line-height: 1.4; position: relative; word-wrap: break-word; }
     .message.mine { align-self: flex-end; background: var(--msg-me); border-top-right-radius: 0; }
     .message.theirs { align-self: flex-start; background: var(--msg-other); border-top-left-radius: 0; }
-    .sender-name { font-size: 11px; font-weight: bold; color: var(--primary); display: block; margin-bottom: 2px; }
-    .message .meta {
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        margin-top: 2px;
-        font-size: 10px;
-        color: rgba(0,0,0,0.45);
-    }
+    
+    .sender-name { font-size: 11px; font-weight: bold; color: var(--primary); display: block; margin-bottom: 2px; cursor: pointer; text-decoration: underline; }
+    .sender-name:hover { color: #005f8f; }
 
+    .message .meta { display: flex; justify-content: flex-end; align-items: center; margin-top: 2px; font-size: 10px; color: rgba(0,0,0,0.45); }
     .message.mine .meta { color: rgba(255,255,255,0.7); }
-
-    .tick {
-        margin-left: 5px;
-        font-weight: bold;
-        display: inline-block;
-        width: 15px;
-    }
-
-    /* Single Tick (Grey) */
+    .tick { margin-left: 5px; font-weight: bold; display: inline-block; width: 15px; }
     .tick.sent::after { content: "✓"; }
-    
-    /* Double Tick (Grey) */
     .tick.delivered::after { content: "✓✓"; letter-spacing: -2px; }
-    
-    /* Blue Tick */
     .tick.read { color: #4fc3f7; }
     .tick.read::after { content: "✓✓"; letter-spacing: -2px; }
+
     /* --- INPUT AREA --- */
     .input-area { 
         padding: 10px; background: #f0f0f0; display: flex; gap: 10px; align-items: center; 
@@ -82,33 +129,21 @@
     .input-area input { flex: 1; padding: 12px; border-radius: 20px; border: 1px solid #ccc; outline: none; font-size: 16px; }
     .input-area button { background: var(--primary); color: white; border: none; border-radius: 50%; width: 45px; height: 45px; font-size: 18px; }
 
-    /* --- SIDEBAR & MOBILE MENU --- */
-    .sidebar-header { padding: 15px; background: #232e3c; font-weight: bold; }
-    .controls { padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-    .controls input, .controls button { padding: 10px; border-radius: 5px; border: none; }
-    .controls button { background: #2b5278; color: white; cursor: pointer; }
-
-    .room-creation-group { display: flex; gap: 5px; flex-wrap: wrap; }
-    .room-creation-group input { flex: 1; min-width: 40%; }
-    .pass-input { width: 100%; margin-top: 5px; }
-
     #mobile-menu-btn { display: none; background: none; border: none; font-size: 24px; cursor: pointer; }
     #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90; display: none; }
     
     @media (max-width: 768px) {
-        .sidebar { position: absolute; left: -100%; top: 0; bottom: 0; z-index: 100; width: 85%; transition: 0.3s; box-shadow: 5px 0 15px rgba(0,0,0,0.5); }
+        .sidebar { position: absolute; left: -100%; top: 0; bottom: 0; z-index: 100; width: 85%; max-width: 320px; transition: 0.3s; box-shadow: 5px 0 15px rgba(0,0,0,0.5); }
         .sidebar.active { left: 0; }
         #mobile-menu-btn { display: block; margin-right: 15px; }
         #overlay.active { display: block; }
     }
 
-    /* --- CALL MODALS (Ensured visibility) --- */
+    /* --- CALL MODALS --- */
     .call-modal {
-        display: none; /* Toggled by JS to 'flex' */
-        position: fixed; inset: 0; 
+        display: none; position: fixed; inset: 0; 
         background: radial-gradient(circle at center, #2b323b 0%, #0e1621 100%);
-        z-index: 10000; /* Extremely high Z-Index */
-        color: white; flex-direction: column; 
+        z-index: 10000; color: white; flex-direction: column; 
         justify-content: center; align-items: center; font-family: -apple-system, sans-serif;
     }
     .avatar-pulse {
@@ -134,9 +169,32 @@
     .btn-accept { background: #4cd964; box-shadow: 0 4px 15px rgba(76, 217, 100, 0.4); animation: bounce 2s infinite; }
     .btn-decline { background: #ff3b30; box-shadow: 0 4px 15px rgba(255, 59, 48, 0.4); }
     @keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(-10px);} 60% {transform: translateY(-5px);} }
+
+    /* --- CONTEXT MENU --- */
+    #context-menu {
+        display: none; position: absolute; z-index: 2000; background: white;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden; min-width: 150px;
+    }
+    #context-menu button {
+        display: block; width: 100%; padding: 12px 15px; text-align: left; background: none;
+        border: none; cursor: pointer; font-size: 14px; border-bottom: 1px solid #eee;
+    }
+    #context-menu button:last-child { border-bottom: none; }
+    #context-menu button:hover { background: #f5f5f5; }
+
+    /* --- INVITE TOAST --- */
+    #invite-toast {
+        display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+        background: #333; color: white; padding: 15px; border-radius: 10px; z-index: 5000;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5); flex-direction: column; gap: 10px; min-width: 250px;
+    }
+    #invite-toast .btn-group { display: flex; gap: 10px; justify-content: flex-end; }
+    #invite-toast button { padding: 5px 15px; border-radius: 5px; border: none; cursor: pointer; }
+    #invite-toast .btn-yes { background: #4cd964; color: white; }
+    #invite-toast .btn-no { background: #ff3b30; color: white; }
 </style>
 </head>
-<body>
+<body onclick="closeContextMenu()">
 
     <div id="login-screen">
         <h2>Enter Name</h2>
@@ -146,30 +204,52 @@
 
     <div id="overlay" onclick="toggleMenu()"></div>
 
+    <div id="context-menu">
+        <button onclick="handlePrivateChatClick()">Take Privately (1 on 1)</button>
+        <button onclick="handleReplyClick()">Reply</button>
+    </div>
+
+    <div id="invite-toast">
+        <span id="invite-text">User wants to chat privately.</span>
+        <div class="btn-group">
+            <button class="btn-no" onclick="declinePrivate()">Cancel</button>
+            <button class="btn-yes" onclick="acceptPrivate()">Accept</button>
+        </div>
+    </div>
+
     <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">Chat Rooms</div>
-        <div class="controls">
-            <button onclick="joinRoom('global')">🌎 Global Chat</button>
-            <hr style="width:100%; border-color:#444;">
-            
-            <label style="font-size: 12px; color: #aaa;">Create Private Room</label>
-            <div class="room-creation-group">
-                <input type="text" id="new-room-name" placeholder="Name">
-                <input type="number" id="new-room-limit" placeholder="Max" min="2" max="10" value="2">
-                <input type="password" id="new-room-pass" class="pass-input" placeholder="Password (Optional)">
+        <div class="sidebar-header">
+            Chats
+        </div>
+        
+        <div id="chat-list">
+            <div class="chat-item active" id="chat-item-global" onclick="switchChat('global')">
+                <div class="chat-avatar" style="background: #0088cc;">🌎</div>
+                <div class="chat-info">
+                    <div class="chat-name">Global Chat</div>
+                    <div class="chat-preview">Public Room</div>
+                </div>
             </div>
-            <button onclick="createRoom()">Create & Join</button>
+            </div>
+
+        <div class="controls-container">
+            <div class="input-group">
+                <label>Create New Room</label>
+                <input type="text" id="new-room-name" placeholder="Room Name">
+                <input type="password" id="new-room-pass" placeholder="Pass (Optional)">
+                <button onclick="createRoom()">Create Room</button>
+            </div>
             
-            <hr style="width:100%; border-color:#444;">
-            <label style="font-size: 12px; color: #aaa;">Join Existing</label>
-            <input type="text" id="join-room-name" placeholder="Room Name">
-            <input type="password" id="join-room-pass" class="pass-input" placeholder="Password">
-            <button onclick="joinCustomRoom()">Join</button>
+            <div class="input-group">
+                <label>Join Existing</label>
+                <input type="text" id="join-room-name" placeholder="Room Name">
+                <input type="password" id="join-room-pass" placeholder="Pass">
+                <button onclick="joinCustomRoom()">Join Room</button>
+            </div>
         </div>
     </div>
 
     <div class="main-chat">
-        
         <div id="video-container">
             <video id="remoteVideo" autoplay playsinline></video>
             <video id="localVideo" autoplay playsinline muted></video>
@@ -220,81 +300,110 @@
     </div>
 
 <script>
-        let pendingCaller = null;
-        let pendingCallType = null;
-        let ws;
-        let username = "";
-        let currentRoom = "global";
+    let pendingCaller = null;
+    let pendingCallType = null;
+    let ws;
+    let username = "";
+    let currentRoom = "global";
+    
+    // Track known rooms to display in list
+    let knownRooms = new Set(['global']);
 
-        // WEBRTC VARIABLES
-        let activeCall = false;
-        let callType = null; 
-        let localStream;
-        const peerConnections = {};
-        const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    // CONTEXT MENU VARIABLES
+    let selectedUser = null;
+    let pendingPrivateRoomId = null;
+    let pendingPrivateSender = null;
 
-        // TIMEOUT & AUDIO VARIABLES
-        let callTimeoutTimer = null;
-        const CALL_TIMEOUT_MS = 40000; 
+    // WEBRTC VARIABLES
+    let activeCall = false;
+    let callType = null; 
+    let localStream;
+    const peerConnections = {};
+    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    let callTimeoutTimer = null;
+    const CALL_TIMEOUT_MS = 40000; 
 
-        document.addEventListener("DOMContentLoaded", () => {
-            // Explicitly hide on load to be safe
-            document.getElementById("incoming-call").style.display = "none";
-            document.getElementById("outgoing-call").style.display = "none";
-        });
-
-        function playRing(type) {
-            const audio = document.getElementById(`ring-${type}`);
-            if (audio) {
-                audio.currentTime = 0;
-                audio.play().catch(e => console.log("Audio play blocked", e));
+    document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("incoming-call").style.display = "none";
+        document.getElementById("outgoing-call").style.display = "none";
+        
+        // Handle Back Button (Browser History)
+        window.onpopstate = function(event) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const urlParams = new URLSearchParams(window.location.search);
+                const roomToJoin = urlParams.get('room') || 'global';
+                // Just send join, logic handles the rest
+                ws.send(JSON.stringify({ action: "join_room", name: roomToJoin }));
             }
-        }
+        };
+    });
 
-        function stopRing() {
-            document.getElementById("ring-outgoing").pause();
-            document.getElementById("ring-outgoing").currentTime = 0;
-            document.getElementById("ring-incoming").pause();
-            document.getElementById("ring-incoming").currentTime = 0;
+    function playRing(type) {
+        const audio = document.getElementById(`ring-${type}`);
+        if (audio) {
+            audio.currentTime = 0;
+            audio.play().catch(e => console.log("Audio play blocked", e));
         }
+    }
 
-        function login() {
-            const input = document.getElementById("username-input");
-            if (!input.value.trim()) return;
-            username = input.value.trim();
-            document.getElementById("login-screen").style.display = "none";
-            connectWebSocket();
-        }
+    function stopRing() {
+        document.getElementById("ring-outgoing").pause();
+        document.getElementById("ring-outgoing").currentTime = 0;
+        document.getElementById("ring-incoming").pause();
+        document.getElementById("ring-incoming").currentTime = 0;
+    }
 
-function connectWebSocket() {
+    function login() {
+        const input = document.getElementById("username-input");
+        if (!input.value.trim()) return;
+        username = input.value.trim();
+        document.getElementById("login-screen").style.display = "none";
+        connectWebSocket();
+    }
+
+    function connectWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws = new WebSocket(`${protocol}//${window.location.host}/ws?username=${encodeURIComponent(username)}`);
+
+        ws.onopen = () => {
+            // Check URL parameters for room on initial load
+            const urlParams = new URLSearchParams(window.location.search);
+            const initialRoom = urlParams.get('room') || 'global';
+            // Backend defaults to global, so we only need to send join if it's NOT global
+            if(initialRoom !== 'global') {
+                ws.send(JSON.stringify({ action: "join_room", name: initialRoom }));
+            }
+        };
 
         ws.onmessage = async (event) => {
             const data = JSON.parse(event.data);
             
             if (data.type === 'room_joined') {
                 currentRoom = data.name;
+                
+                // --- UPDATE URL ---
+                const newUrl = `${window.location.pathname}?room=${currentRoom}`;
+                if (window.location.search !== `?room=${currentRoom}`) {
+                    window.history.pushState({ room: currentRoom }, '', newUrl);
+                }
+
                 document.getElementById("messages").innerHTML = '';
-                document.getElementById("current-room-name").innerText = data.name;
+                document.getElementById("current-room-name").innerText = formatRoomName(data.name);
                 addMessage(`Joined room: ${data.name}`, 'system', 'System');
-            
+                
+                // --- UPDATE SIDEBAR LIST ---
+                addToChatList(data.name);
+                highlightChat(data.name);
+
             } else if (data.type === 'user_joined') {
                 addMessage(data.content, 'system', 'System');
-                // Visually mark all my pending messages as Read (Blue Tick).
-                if (data.username !== username) {
-                    markAllAsRead();
-                }
+                if (data.username !== username) markAllAsRead();
 
             } else if (data.type === 'chat') {
                 if (data.sender === username) return;
-
                 addMessage(data.content, 'theirs', data.sender, data.id);
                 ws.send(JSON.stringify({ action: "status_delivered", id: data.id }));
-
-                if (!document.hidden) {
-                    ws.send(JSON.stringify({ action: "status_read", id: data.id }));
-                }
+                if (!document.hidden) ws.send(JSON.stringify({ action: "status_read", id: data.id }));
 
             } else if (data.type === 'status_update') {
                 updateMessageStatus(data.msg_id, data.status);
@@ -309,295 +418,409 @@ function connectWebSocket() {
         };
     }
 
+    // --- SIDEBAR UI LOGIC ---
+    function formatRoomName(rawName) {
+        if (rawName.startsWith('private-')) return 'Private Chat';
+        return rawName;
+    }
 
+    function addToChatList(roomName) {
+        if (knownRooms.has(roomName)) return;
+        knownRooms.add(roomName);
+
+        const list = document.getElementById("chat-list");
+        const div = document.createElement("div");
+        div.className = "chat-item";
+        div.id = `chat-item-${roomName}`;
+        div.onclick = () => switchChat(roomName);
+        
+        let avatarText = roomName.substring(0,2).toUpperCase();
+        let subText = "Room";
+        let bgColor = "#" + Math.floor(Math.random()*16777215).toString(16);
+
+        if (roomName.startsWith('private-')) {
+            avatarText = "🔒";
+            subText = "1-on-1";
+            bgColor = "#4cd964";
+        } else if (roomName === 'global') {
+            return; // Global is hardcoded
+        }
+
+        div.innerHTML = `
+            <div class="chat-avatar" style="background: ${bgColor};">${avatarText}</div>
+            <div class="chat-info">
+                <div class="chat-name">${formatRoomName(roomName)}</div>
+                <div class="chat-preview">${subText}</div>
+            </div>
+        `;
+        list.appendChild(div);
+    }
+
+    function highlightChat(roomName) {
+        document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
+        const item = document.getElementById(`chat-item-${roomName}`);
+        if (item) item.classList.add('active');
+    }
+
+    function switchChat(roomName) {
+        if (roomName === currentRoom) return;
+
+        // --- NEW LOGIC: Remove private room from sidebar when leaving ---
+        if (currentRoom.startsWith('private-')) {
+            const oldRoomId = currentRoom;
+            // Remove from DOM
+            const oldItem = document.getElementById(`chat-item-${oldRoomId}`);
+            if (oldItem) oldItem.remove();
+            // Remove from known rooms tracking
+            knownRooms.delete(oldRoomId);
+        }
+
+        ws.send(JSON.stringify({ action: "join_room", name: roomName }));
+        document.getElementById("sidebar").classList.remove("active");
+        document.getElementById("overlay").classList.remove("active");
+    }
+
+    // --- STANDARD CHAT UTILS ---
     function markAllAsRead() {
-        // Select all ticks that are NOT yet blue
         const ticks = document.querySelectorAll('.tick:not(.read)');
         ticks.forEach(tick => {
             tick.classList.remove('sent', 'delivered');
-            tick.classList.add('read'); // Force Blue Tick
+            tick.classList.add('read'); 
         });
     }
 
-        function updateMessageStatus(msgId, status) {
-                // status is 'delivered' or 'read'
-                const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
-                if (msgDiv) {
-                    const tick = msgDiv.querySelector('.tick');
-                    if (tick) {
-                        // If it's already read, don't go back to delivered
-                        if (tick.classList.contains('read')) return;
-                    
-                        // Remove old classes
-                        tick.classList.remove('sent', 'delivered');
-                        // Add new class
-                        tick.classList.add(status);
-                    }
-                }
-            }
-
-        function generateId() {
-                return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-            }
-        
-        
-        function sendMessage() {
-                const input = document.getElementById("msg-input");
-                if (!input.value.trim()) return;
-
-                const msgId = generateId();
-                const content = input.value.trim();
-        
-                // Send to server
-                ws.send(JSON.stringify({ 
-                    action: "message", 
-                    content: content, 
-                    id: msgId 
-                }));
-            
-                // Render immediately as "Sent" (Single Tick)
-                addMessage(content, 'mine', 'Me', msgId, 'sent');
-
-                input.value = "";
-            }
-        function handleKey(e) { if(e.key === "Enter") sendMessage(); }
-
-        function addMessage(text, type, sender, msgId = null, initialStatus = '') {
-                const box = document.getElementById("messages");
-                const div = document.createElement("div");
-                div.className = `message ${type}`;
-
-                // Store ID in the DOM element so we can find it later
-                if (msgId) div.setAttribute("data-id", msgId);
-        
-                let html = '';
-                if (type === 'theirs') {
-                    html += `<span class="sender-name">${sender}</span>`;
-                }
-
-                html += `${text}`;
-            
-                // Only add ticks to MY messages
-                if (type === 'mine') {
-                    html += `<div class="meta">
-                                <span class="tick ${initialStatus}"></span>
-                             </div>`;
-                }
-            
-                div.innerHTML = html;
-                box.appendChild(div);
-                box.scrollTop = box.scrollHeight;
-            }
-
-        function createRoom() {
-            const name = document.getElementById("new-room-name").value.trim();
-            const limit = document.getElementById("new-room-limit").value || 2;
-            const password = document.getElementById("new-room-pass").value.trim();
-            if(name) {
-                ws.send(JSON.stringify({ action: "create_room", name: name, limit: limit, password: password }));
-                toggleMenu();
-            } else {
-                alert("Please enter a room name");
+    function updateMessageStatus(msgId, status) {
+        const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
+        if (msgDiv) {
+            const tick = msgDiv.querySelector('.tick');
+            if (tick) {
+                if (tick.classList.contains('read')) return;
+                tick.classList.remove('sent', 'delivered');
+                tick.classList.add(status);
             }
         }
+    }
 
-        function joinCustomRoom() {
-            const name = document.getElementById("join-room-name").value.trim();
-            const password = document.getElementById("join-room-pass").value.trim();
-            if(name) joinRoom(name, password);
+    function generateId() {
+        return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    }
+    
+    function sendMessage() {
+        const input = document.getElementById("msg-input");
+        if (!input.value.trim()) return;
+
+        const msgId = generateId();
+        const content = input.value.trim();
+
+        ws.send(JSON.stringify({ 
+            action: "message", 
+            content: content, 
+            id: msgId 
+        }));
+    
+        addMessage(content, 'mine', 'Me', msgId, 'sent');
+        input.value = "";
+    }
+    function handleKey(e) { if(e.key === "Enter") sendMessage(); }
+
+    function addMessage(text, type, sender, msgId = null, initialStatus = '') {
+        const box = document.getElementById("messages");
+        const div = document.createElement("div");
+        div.className = `message ${type}`;
+
+        if (msgId) div.setAttribute("data-id", msgId);
+
+        let html = '';
+        if (type === 'theirs') {
+            html += `<span class="sender-name" onclick="openContextMenu(event, '${sender}')">${sender}</span>`;
         }
 
-        function joinRoom(name, password="") {
-            ws.send(JSON.stringify({ action: "join_room", name: name, password: password }));
+        html += `${text}`;
+    
+        if (type === 'mine') {
+            html += `<div class="meta"><span class="tick ${initialStatus}"></span></div>`;
+        }
+    
+        div.innerHTML = html;
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    // --- CONTEXT MENU FUNCTIONS ---
+    function openContextMenu(e, user) {
+        e.stopPropagation(); 
+        selectedUser = user;
+        const menu = document.getElementById("context-menu");
+        menu.style.display = "block";
+        menu.style.left = `${e.clientX}px`;
+        menu.style.top = `${e.clientY}px`;
+    }
+
+    function closeContextMenu() {
+        document.getElementById("context-menu").style.display = "none";
+    }
+
+    function handleReplyClick() {
+        const input = document.getElementById("msg-input");
+        input.value = `@${selectedUser} `;
+        input.focus();
+        closeContextMenu();
+    }
+
+    function handlePrivateChatClick() {
+        if (!selectedUser) return;
+        const privateRoomId = `private-${Date.now()}`;
+        showToast(`Inviting ${selectedUser} to private chat...`);
+        sendSignal({ type: "invite_private", roomId: privateRoomId }, selectedUser);
+        closeContextMenu();
+    }
+
+    // --- PRIVATE CHAT HANDLERS ---
+    function declinePrivate() {
+        document.getElementById("invite-toast").style.display = "none";
+        sendSignal({ type: "decline_private" }, pendingPrivateSender);
+        pendingPrivateRoomId = null;
+        pendingPrivateSender = null;
+    }
+
+    function acceptPrivate() {
+        document.getElementById("invite-toast").style.display = "none";
+        if (!pendingPrivateRoomId || !pendingPrivateSender) return;
+        sendSignal({ type: "accept_private", roomId: pendingPrivateRoomId }, pendingPrivateSender);
+        // Wait briefly for initiator to create it
+        setTimeout(() => {
+                ws.send(JSON.stringify({ action: "join_room", name: pendingPrivateRoomId }));
+        }, 500);
+    }
+
+    function createRoom() {
+        const name = document.getElementById("new-room-name").value.trim();
+        const password = document.getElementById("new-room-pass").value.trim();
+        if(name) {
+            ws.send(JSON.stringify({ action: "create_room", name: name, limit: 10, password: password }));
             toggleMenu();
+        } else {
+            alert("Please enter a room name");
+        }
+    }
+
+    function joinCustomRoom() {
+        const name = document.getElementById("join-room-name").value.trim();
+        const password = document.getElementById("join-room-pass").value.trim();
+        if(name) joinRoom(name, password);
+    }
+
+    function joinRoom(name, password="") {
+        ws.send(JSON.stringify({ action: "join_room", name: name, password: password }));
+        toggleMenu();
+    }
+
+    // --- WEBRTC ---
+    function sendSignal(data, target = null) {
+        const payload = { action: "signal", data: data };
+        if (target) payload.target = target;
+        ws.send(JSON.stringify(payload));
+    }
+
+    async function startCall(type) {
+        if (currentRoom === 'global') {
+            alert("Create a private room to call.");
+            return;
+        }
+        callType = type; 
+        document.getElementById("outgoing-call").style.display = "flex";
+        playRing('outgoing');
+        if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+        callTimeoutTimer = setTimeout(() => {
+            cancelCall(); 
+            showToast("No answer, call ended.");
+        }, CALL_TIMEOUT_MS);
+        sendSignal({ type: "call_invite", callType: type });
+    }
+
+    function cancelCall() {
+        if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+        stopRing();
+        document.getElementById("outgoing-call").style.display = "none";
+        sendSignal({ type: "peer_left" }); 
+        activeCall = false;
+    }
+
+    function showToast(text) {
+        const t = document.createElement("div");
+        t.innerText = text;
+        t.style.cssText = `position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#333; color:#fff; padding:10px 16px; border-radius:20px; z-index:9999; font-size:14px;`;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+    }
+
+    async function handleSignal(msg) {
+        const data = msg.data;
+        const sender = msg.sender;
+
+        if (data.type === "invite_private") {
+            if (sender === username) return;
+            pendingPrivateSender = sender;
+            pendingPrivateRoomId = data.roomId;
+            document.getElementById("invite-text").innerText = `${sender} wants to chat privately.`;
+            document.getElementById("invite-toast").style.display = "flex";
+            return;
         }
 
-        // --- WEBRTC ---
-        function sendSignal(data, target = null) {
-            const payload = { action: "signal", data: data };
-            if (target) payload.target = target;
-            ws.send(JSON.stringify(payload));
+        if (data.type === "decline_private") {
+            showToast(`${sender} declined private chat.`);
+            return;
         }
 
-        async function startCall(type) {
-            if (currentRoom === 'global') {
-                alert("Create a private room to call.");
-                return;
-            }
-            callType = type; 
-            document.getElementById("outgoing-call").style.display = "flex";
-            playRing('outgoing');
+        if (data.type === "accept_private") {
+            // Initiator creates room upon acceptance
+            ws.send(JSON.stringify({ action: "create_room", name: data.roomId, limit: 2, password: "" }));
+            return;
+        }
+    
+        if (data.type === "call_invite") {
+            if (activeCall) return;
+            if (sender === username) return;
+            pendingCaller = sender;
+            pendingCallType = data.callType;
+            document.getElementById("caller-name").innerText = sender;
+            document.getElementById("call-type").innerText = data.callType === "video" ? "Incoming Video Call" : "Incoming Voice Call";
+            document.getElementById("incoming-call").style.display = "flex";
+            playRing('incoming');
             if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-            callTimeoutTimer = setTimeout(() => {
-                cancelCall(); 
-                showToast("No answer, call ended.");
-            }, CALL_TIMEOUT_MS);
-            sendSignal({ type: "call_invite", callType: type });
+            callTimeoutTimer = setTimeout(() => { declineCall(); }, CALL_TIMEOUT_MS);
+            return; 
         }
 
-        function cancelCall() {
+        if (data.type === "call_accept") {
             if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
             stopRing();
             document.getElementById("outgoing-call").style.display = "none";
-            sendSignal({ type: "peer_left" }); 
-            activeCall = false;
+            if (!activeCall) {
+                activeCall = true;
+                document.getElementById("video-container").style.display = "flex";
+                await initMedia(callType === "video");
+            }
+            const pc = createPeerConnection(sender);
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            sendSignal({ type: "offer", sdp: offer }, sender);
+            return;
         }
-
-        function showToast(text) {
-            const t = document.createElement("div");
-            t.innerText = text;
-            t.style.cssText = `position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#333; color:#fff; padding:10px 16px; border-radius:20px; z-index:9999; font-size:14px;`;
-            document.body.appendChild(t);
-            setTimeout(() => t.remove(), 3000);
-        }
-
-        async function handleSignal(msg) {
-            const data = msg.data;
-            const sender = msg.sender;
-        
-            if (data.type === "call_invite") {
-                if (activeCall) return;
-                if (sender === username) return;
-                pendingCaller = sender;
-                pendingCallType = data.callType;
-                document.getElementById("caller-name").innerText = sender;
-                document.getElementById("call-type").innerText = data.callType === "video" ? "Incoming Video Call" : "Incoming Voice Call";
-                document.getElementById("incoming-call").style.display = "flex";
-                playRing('incoming');
-                if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-                callTimeoutTimer = setTimeout(() => { declineCall(); }, CALL_TIMEOUT_MS);
-                return; 
-            }
-
-            if (data.type === "call_accept") {
-                if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-                stopRing();
-                document.getElementById("outgoing-call").style.display = "none";
-                if (!activeCall) {
-                    activeCall = true;
-                    document.getElementById("video-container").style.display = "flex";
-                    await initMedia(callType === "video");
-                }
-                const pc = createPeerConnection(sender);
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                sendSignal({ type: "offer", sdp: offer }, sender);
-                return;
-            }
-        
-            if (data.type === "call_decline") {
-                if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-                stopRing();
-                document.getElementById("outgoing-call").style.display = "none";
-                showToast(`${sender} declined the call`);
-                return;
-            }
-        
-            if (data.type === "offer") {
-                const pc = createPeerConnection(sender);
-                await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                sendSignal({ type: "answer", sdp: answer }, sender);
-                return;
-            }
-            if (data.type === "answer") {
-                if (peerConnections[sender]) await peerConnections[sender].setRemoteDescription(new RTCSessionDescription(data.sdp));
-                return;
-            }
-            if (data.type === "candidate") {
-                if (peerConnections[sender]) await peerConnections[sender].addIceCandidate(new RTCIceCandidate(data.candidate));
-            }
-            if (data.type === "peer_left") {
-                document.getElementById("incoming-call").style.display = "none"; 
-                stopRing();
-                if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-                if (peerConnections[sender]) {
-                    peerConnections[sender].close();
-                    delete peerConnections[sender];
-                }
-                if (Object.keys(peerConnections).length === 0) cleanupCall();
-                return;
-            }
-        }
-
-        async function acceptCall() {
+    
+        if (data.type === "call_decline") {
             if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
             stopRing();
-            document.getElementById("incoming-call").style.display = "none";
-            activeCall = true;
-            callType = pendingCallType;
-            document.getElementById("video-container").style.display = "flex";
-            await initMedia(callType === "video");
-            sendSignal({ type: "call_accept" }, pendingCaller);
-            pendingCaller = null;
-            pendingCallType = null;
+            document.getElementById("outgoing-call").style.display = "none";
+            showToast(`${sender} declined the call`);
+            return;
         }
-
-        function declineCall() {
+    
+        if (data.type === "offer") {
+            const pc = createPeerConnection(sender);
+            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            sendSignal({ type: "answer", sdp: answer }, sender);
+            return;
+        }
+        if (data.type === "answer") {
+            if (peerConnections[sender]) await peerConnections[sender].setRemoteDescription(new RTCSessionDescription(data.sdp));
+            return;
+        }
+        if (data.type === "candidate") {
+            if (peerConnections[sender]) await peerConnections[sender].addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+        if (data.type === "peer_left") {
+            document.getElementById("incoming-call").style.display = "none"; 
+            stopRing();
             if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-            stopRing();
-            document.getElementById("incoming-call").style.display = "none";
-            sendSignal({ type: "call_decline" }, pendingCaller);
-            pendingCaller = null;
-            pendingCallType = null;
-        }
-
-        async function initMedia(videoEnabled) {
-            try {
-                if (!localStream) {
-                    const constraints = {
-                        audio: true,
-                        video: videoEnabled ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" } : false
-                    };
-                    localStream = await navigator.mediaDevices.getUserMedia(constraints);
-                    document.getElementById("localVideo").srcObject = localStream;
-                }
-            } catch (e) {
-                alert("Error accessing camera/mic: " + e.message);
-                cleanupCall();
+            if (peerConnections[sender]) {
+                peerConnections[sender].close();
+                delete peerConnections[sender];
             }
+            if (Object.keys(peerConnections).length === 0) cleanupCall();
+            return;
         }
+    }
 
-        function createPeerConnection(peerName) {
-            if (peerConnections[peerName]) return peerConnections[peerName];
-            const pc = new RTCPeerConnection(rtcConfig);
-            peerConnections[peerName] = pc;
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-            pc.ontrack = event => {
-                const remoteVid = document.getElementById("remoteVideo");
-                if (remoteVid.srcObject !== event.streams[0]) remoteVid.srcObject = event.streams[0];
-            };
-            pc.onicecandidate = event => {
-                if (event.candidate) sendSignal({ type: 'candidate', candidate: event.candidate }, peerName);
-            };
-            pc.onconnectionstatechange = () => {
-                if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') delete peerConnections[peerName];
-            };
-            return pc;
-        }
+    async function acceptCall() {
+        if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+        stopRing();
+        document.getElementById("incoming-call").style.display = "none";
+        activeCall = true;
+        callType = pendingCallType;
+        document.getElementById("video-container").style.display = "flex";
+        await initMedia(callType === "video");
+        sendSignal({ type: "call_accept" }, pendingCaller);
+        pendingCaller = null;
+        pendingCallType = null;
+    }
 
-        function cleanupCall() {
-            document.getElementById("video-container").style.display = "none";
-            stopRing();
-            for (const pc of Object.values(peerConnections)) pc.close();
-            for (const key in peerConnections) delete peerConnections[key];
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
+    function declineCall() {
+        if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+        stopRing();
+        document.getElementById("incoming-call").style.display = "none";
+        sendSignal({ type: "call_decline" }, pendingCaller);
+        pendingCaller = null;
+        pendingCallType = null;
+    }
+
+    async function initMedia(videoEnabled) {
+        try {
+            if (!localStream) {
+                const constraints = {
+                    audio: true,
+                    video: videoEnabled ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" } : false
+                };
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                document.getElementById("localVideo").srcObject = localStream;
             }
-            activeCall = false;
-        }
-
-        function endCall() {
-            sendSignal({ type: "peer_left" });
+        } catch (e) {
+            alert("Error accessing camera/mic: " + e.message);
             cleanupCall();
         }
+    }
 
-        function toggleMenu() {
-            document.getElementById("sidebar").classList.toggle("active");
-            document.getElementById("overlay").classList.toggle("active");
+    function createPeerConnection(peerName) {
+        if (peerConnections[peerName]) return peerConnections[peerName];
+        const pc = new RTCPeerConnection(rtcConfig);
+        peerConnections[peerName] = pc;
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        pc.ontrack = event => {
+            const remoteVid = document.getElementById("remoteVideo");
+            if (remoteVid.srcObject !== event.streams[0]) remoteVid.srcObject = event.streams[0];
+        };
+        pc.onicecandidate = event => {
+            if (event.candidate) sendSignal({ type: 'candidate', candidate: event.candidate }, peerName);
+        };
+        pc.onconnectionstatechange = () => {
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') delete peerConnections[peerName];
+        };
+        return pc;
+    }
+
+    function cleanupCall() {
+        document.getElementById("video-container").style.display = "none";
+        stopRing();
+        for (const pc of Object.values(peerConnections)) pc.close();
+        for (const key in peerConnections) delete peerConnections[key];
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
         }
-    </script>
+        activeCall = false;
+    }
+
+    function endCall() {
+        sendSignal({ type: "peer_left" });
+        cleanupCall();
+    }
+
+    function toggleMenu() {
+        document.getElementById("sidebar").classList.toggle("active");
+        document.getElementById("overlay").classList.toggle("active");
+    }
+</script>
 </body>
 </html>

@@ -28,6 +28,7 @@ class Room:
             del self.connections[name]
 
     async def broadcast_signal(self, sender_name: str, signal_data: dict):
+        # Broadcast signals (invites, webrtc) to others in the room
         to_remove = []
         for name, ws in self.connections.items():
             if name != sender_name:
@@ -67,10 +68,10 @@ class RoomManager:
         
         room.connections[username] = websocket
         
-        # 1. Notify others
-        await room.broadcast({"type": "user_joined", "username": username,"content": f"{username} joined."}, sender_name="System")
+        # Notify others
+        await room.broadcast({"type": "user_joined", "username": username, "content": f"{username} joined."}, sender_name="System")
         
-        # 2. Tell the specific user they joined successfully (Triggers UI switch/clear)
+        # Tell the user they joined
         await websocket.send_json({"type": "room_joined", "name": name})
         
         return True, "Joined"
@@ -79,6 +80,7 @@ class RoomManager:
         if name in self.rooms and username in self.rooms[name].connections:
             del self.rooms[name].connections[username]
             await self.rooms[name].broadcast({"type": "system", "content": f"{username} left."}, sender_name="System")
+            # Auto-delete empty rooms (except global)
             if name != "global" and len(self.rooms[name].connections) == 0:
                 del self.rooms[name]
 
@@ -102,18 +104,15 @@ async def websocket_endpoint(websocket: WebSocket, username: str = Query(...)):
             action = msg_data.get("action")
 
             if action == "message":
-                # Generate a message ID if client didn't send one (optional safety)
                 msg_id = msg_data.get("id")
                 if current_room in manager.rooms:
                     await manager.rooms[current_room].broadcast({
                         "type": "chat", 
                         "content": msg_data["content"],
-                        "id": msg_id  # Pass the ID through
+                        "id": msg_id
                     }, sender_name=username)
 
-            # HANDLE STATUS UPDATES (DELIVERED/READ)
             elif action in ["status_delivered", "status_read"]:
-                # Relay this status to everyone in the room (specifically the original sender needs this)
                 status_type = "delivered" if action == "status_delivered" else "read"
                 if current_room in manager.rooms:
                     await manager.rooms[current_room].broadcast({
@@ -135,7 +134,6 @@ async def websocket_endpoint(websocket: WebSocket, username: str = Query(...)):
                 if manager.create_room(room_name, limit, password):
                     await manager.leave_room(current_room, username)
                     current_room = room_name
-                    # Join sends the "room_joined" event to clear chat
                     await manager.join_room(current_room, username, websocket, password)
                 else:
                     await websocket.send_json({"type": "error", "content": f"Room '{room_name}' exists."})
