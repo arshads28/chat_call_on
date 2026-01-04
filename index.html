@@ -58,7 +58,6 @@
         .controls input, .controls button { padding: 10px; border-radius: 5px; border: none; }
         .controls button { background: #2b5278; color: white; cursor: pointer; }
 
-        /* Special styling for the Limit Input to make it fit nicely */
         .room-creation-group { display: flex; gap: 5px; }
         .room-creation-group input[type="text"] { flex: 2; }
         .room-creation-group input[type="number"] { flex: 1; }
@@ -119,7 +118,8 @@
                 <button id="mobile-menu-btn" onclick="toggleMenu()">☰</button>
                 <span id="current-room-name" style="margin-left:10px;">Global Chat</span>
             </div>
-            <button onclick="startCall()" style="background:none; border:none; font-size:24px; cursor:pointer;">📞</button>
+            <button onclick="startCall('audio')" style="margin-right: 10px; font-size:24px; background:none; border:none; cursor:pointer;">📞</button>
+            <button onclick="startCall('video')" style="font-size:24px; background:none; border:none; cursor:pointer;">🎥</button>
         </div>
 
         <div id="messages"></div>
@@ -136,8 +136,10 @@
         let currentRoom = "global";
 
         // WEBRTC VARIABLES
+        let activeCall = false;
+        let callType = null; // "audio" | "video"
         let localStream;
-        let peerConnection;
+        const peerConnections = {};
         const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
         function login() {
@@ -162,7 +164,7 @@
                 } else if (data.type === 'signal') {
                     handleSignal(data);
                 } else if (data.type === 'error') {
-                    alert(data.content); // Show error if room is full
+                    alert(data.content);
                 }
             };
         }
@@ -185,19 +187,12 @@
             box.scrollTop = box.scrollHeight;
         }
 
-        // --- ROOMS (UPDATED) ---
+        // --- ROOMS ---
         function createRoom() {
             const name = document.getElementById("new-room-name").value.trim();
-            // Get the limit from the input box, default to 2 if empty
             const limit = document.getElementById("new-room-limit").value || 2;
-            
             if(name) {
-                // Send BOTH name and limit to server
-                ws.send(JSON.stringify({ 
-                    action: "create_room", 
-                    name: name, 
-                    limit: limit 
-                }));
+                ws.send(JSON.stringify({ action: "create_room", name: name, limit: limit }));
                 updateHeader(name);
                 toggleMenu();
             } else {
@@ -221,68 +216,210 @@
         }
 
         // --- WEBRTC CALLING LOGIC ---
-        async function startCall() {
-            if (currentRoom === 'global') return alert("Create a private room to call.");
-            
-            document.getElementById("video-container").style.display = 'flex';
-            await initMedia();
-            createPeerConnection();
 
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
+        // 1. MODIFIED: sendSignal now accepts a 'target' to route the message correctly
+        function sendSignal(data, target = null) {
+            const payload = { action: "signal", data: data };
+            if (target) {
+                payload.target = target; // Backend uses this to route private messages
+            }
+            ws.send(JSON.stringify(payload));
+        }
+
+        async function startCall(type) {
+            if (currentRoom === 'global') {
+                alert("Create a private room to call.");
+                return;
+            }
+        
+            callType = type;
+            activeCall = true;
+            document.getElementById("video-container").style.display = "flex";
+            await initMedia(type === "video");
             
-            sendSignal({ type: 'offer', sdp: offer });
+            // Send invite to everyone in room (no specific target yet)
+            sendSignal({ type: "call_invite", callType: type });
+        }
+
+
+        function showToast(text) {
+            const t = document.createElement("div");
+            t.innerText = text;
+            t.style.cssText = `
+                position:fixed;
+                bottom:80px;
+                left:50%;
+                transform:translateX(-50%);
+                background:#333;
+                color:#fff;
+                padding:10px 16px;
+                border-radius:20px;
+                z-index:9999;
+                font-size:14px;
+            `;
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 3000);
         }
 
         async function handleSignal(msg) {
             const data = msg.data;
-            if (data.type === 'offer') {
-                if(confirm(`Incoming call from ${msg.sender}. Accept?`)) {
-                    document.getElementById("video-container").style.display = 'flex';
-                    await initMedia();
-                    createPeerConnection();
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    sendSignal({ type: 'answer', sdp: answer });
+            const sender = msg.sender;
+        
+            // 🔔 INCOMING CALL
+            if (data.type === "call_invite") {
+                if (activeCall) return; // Busy
+                // Don't alert yourself
+                if (sender === username) return;
+            
+                const accept = confirm(`${sender} is calling (${data.callType === "video" ? "Video" : "Voice"}). Accept?`);
+            
+                if (!accept) {
+                    sendSignal({ type: "call_decline" }, sender);
+                    return;
                 }
-            } else if (data.type === 'answer') {
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-            } else if (data.type === 'candidate') {
-                if (peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            
+                activeCall = true;
+                callType = data.callType;
+            
+                document.getElementById("video-container").style.display = "flex";
+                await initMedia(callType === "video");
+            
+                // TARGET THE ACCEPTANCE TO THE CALLER
+                sendSignal({ type: "call_accept" }, sender);
+                return;
+            }
+        
+            // ✅ USER ACCEPTED
+            if (data.type === "call_accept") {
+                const pc = createPeerConnection(sender);
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                // TARGET THE OFFER TO THE PERSON WHO ACCEPTED
+                sendSignal({ type: "offer", sdp: offer }, sender);
+                return;
+            }
+        
+            // ❌ USER DECLINED
+            if (data.type === "call_decline") {
+                showToast(`${sender} declined the call`);
+                addMessage(`${sender} declined the call`, 'system', 'System');
+                // cleanupCall();
+                return;
+            }
+        
+            // 📡 WEBRTC FLOW
+            if (data.type === "offer") {
+                const pc = createPeerConnection(sender);
+                await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                // TARGET THE ANSWER BACK TO THE OFFERER
+                sendSignal({ type: "answer", sdp: answer }, sender);
+                return;
+            }
+        
+            if (data.type === "answer") {
+                if (peerConnections[sender]) {
+                    await peerConnections[sender].setRemoteDescription(new RTCSessionDescription(data.sdp));
+                }
+                return;
+            }
+        
+            if (data.type === "candidate") {
+                if (peerConnections[sender]) {
+                    await peerConnections[sender].addIceCandidate(new RTCIceCandidate(data.candidate));
+                }
+            }
+
+            if (data.type === "peer_left") {
+                if (peerConnections[sender]) {
+                    peerConnections[sender].close();
+                    delete peerConnections[sender];
+                }
+                return;
+            }
+
+            // if (data.type === "call_end") {
+            //     cleanupCall();
+            // }
+        }
+
+        async function initMedia(videoEnabled) {
+            try {
+                if (!localStream) {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        video: videoEnabled,
+                        audio: true
+                    });
+                    document.getElementById("localVideo").srcObject = localStream;
+                }
+            } catch (e) {
+                alert("Error accessing camera/mic: " + e.message);
+                cleanupCall();
             }
         }
 
-        function sendSignal(data) {
-            ws.send(JSON.stringify({ action: "signal", data: data }));
+        function createPeerConnection(peerName) {
+            if (peerConnections[peerName]) return peerConnections[peerName];
+
+            const pc = new RTCPeerConnection(rtcConfig);
+            peerConnections[peerName] = pc;
+        
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        
+            pc.ontrack = event => {
+                // Attach remote stream
+                const remoteVid = document.getElementById("remoteVideo");
+                if (remoteVid.srcObject !== event.streams[0]) {
+                    remoteVid.srcObject = event.streams[0];
+                }
+            };
+        
+            pc.onicecandidate = event => {
+                if (event.candidate) {
+                    // Send candidate specifically to this peer
+                    sendSignal({
+                        type: 'candidate',
+                        candidate: event.candidate
+                    }, peerName);
+                }
+            };
+            
+            // Handle connection state changes for debugging
+            pc.onconnectionstatechange = () => {
+                console.log(`Connection with ${peerName}: ${pc.connectionState}`);
+                if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                    delete peerConnections[peerName];
+                }
+            };
+        
+            return pc;
         }
 
-        async function initMedia() {
-            if (!localStream) {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.getElementById("localVideo").srcObject = localStream;
+        function cleanupCall() {
+            document.getElementById("video-container").style.display = "none";
+        
+            for (const pc of Object.values(peerConnections)) {
+                pc.close();
             }
-        }
-
-        function createPeerConnection() {
-            peerConnection = new RTCPeerConnection(rtcConfig);
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-            peerConnection.ontrack = event => {
-                document.getElementById("remoteVideo").srcObject = event.streams[0];
-            };
-            peerConnection.onicecandidate = event => {
-                if (event.candidate) sendSignal({ type: 'candidate', candidate: event.candidate });
-            };
-        }
-
-        function endCall() {
-            document.getElementById("video-container").style.display = 'none';
-            if(peerConnection) peerConnection.close();
-            if(localStream) {
+            
+            // Clear dictionary
+            for (const key in peerConnections) delete peerConnections[key];
+        
+            if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
             }
+        
+            activeCall = false;
         }
+
+        function endCall() {
+            // Broadcast end to everyone involved
+            sendSignal({ type: "peer_left" });
+            cleanupCall();
+        }
+        
 
         function toggleMenu() {
             document.getElementById("sidebar").classList.toggle("active");
@@ -291,12 +428,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
