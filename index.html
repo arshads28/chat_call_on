@@ -4,74 +4,121 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Chat & Call</title>
-    <style>
-        :root { --primary: #0088cc; --bg: #e5ddd5; --sidebar: #17212b; --msg-me: #dcf8c6; --msg-other: #fff; }
-        * { box-sizing: border-box; }
-        
-        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100dvh; display: flex; overflow: hidden; background: #000; }
+<style>
+    :root { --primary: #0088cc; --bg: #e5ddd5; --sidebar: #17212b; --msg-me: #dcf8c6; --msg-other: #fff; }
+    * { box-sizing: border-box; }
+    
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100dvh; display: flex; overflow: hidden; background: #000; }
 
-        /* --- LOGIN --- */
-        #login-screen { position: fixed; inset: 0; background: #fff; z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; }
-        #login-screen input { padding: 15px; font-size: 1.2rem; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 10px; width: 80%; max-width: 300px; }
-        #login-screen button { padding: 15px 30px; font-size: 1.2rem; background: var(--primary); color: white; border: none; border-radius: 8px; }
+    /* --- LOGIN --- */
+    #login-screen { position: fixed; inset: 0; background: #fff; z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+    #login-screen input { padding: 15px; font-size: 1.2rem; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 10px; width: 80%; max-width: 300px; }
+    #login-screen button { padding: 15px 30px; font-size: 1.2rem; background: var(--primary); color: white; border: none; border-radius: 8px; }
 
-        /* --- LAYOUT --- */
-        .sidebar { width: 300px; background: var(--sidebar); color: white; display: flex; flex-direction: column; border-right: 1px solid #444; }
-        .main-chat { flex: 1; display: flex; flex-direction: column; background: var(--bg); position: relative; height: 100%; }
+    /* --- LAYOUT --- */
+    .sidebar { width: 300px; background: var(--sidebar); color: white; display: flex; flex-direction: column; border-right: 1px solid #444; }
+    .main-chat { flex: 1; display: flex; flex-direction: column; background: var(--bg); position: relative; height: 100%; }
 
-        /* --- VIDEO CALL OVERLAY --- */
-        #video-container { 
-            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background: #000; z-index: 500; flex-direction: column; 
-        }
-        #remoteVideo { width: 100%; height: 100%; object-fit: cover; }
-        #localVideo { 
-            position: absolute; bottom: 100px; right: 20px; width: 100px; height: 140px; 
-            border: 2px solid white; border-radius: 8px; object-fit: cover; background: #333; z-index: 501;
-        }
-        .call-controls { 
-            position: absolute; bottom: 30px; left: 0; width: 100%; 
-            display: flex; justify-content: center; gap: 20px; z-index: 502; 
-        }
-        .btn-end { background: #ff3b30; color: white; padding: 15px 30px; border-radius: 30px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+    /* --- VIDEO CALL OVERLAY --- */
+    #video-container { 
+        display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+        background: #000; z-index: 500; flex-direction: column; align-items: center; justify-content: center;
+    }
+    
+    /* FIX: object-fit: contain prevents zooming/cropping. High quality feel. */
+    #remoteVideo { 
+        width: 100%; height: 100%; 
+        object-fit: contain; /* Shows full video without cropping */
+        background: #000;
+    }
+    #localVideo { 
+        position: absolute; bottom: 100px; right: 20px; width: 120px; height: 160px; 
+        border: 2px solid rgba(255,255,255,0.5); border-radius: 12px; 
+        object-fit: cover; /* Local video can be cropped to fit the small box */
+        background: #333; z-index: 501;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .call-controls { 
+        position: absolute; bottom: 30px; left: 0; width: 100%; 
+        display: flex; justify-content: center; gap: 20px; z-index: 502; 
+    }
+    .btn-end { background: #ff3b30; color: white; padding: 15px 30px; border-radius: 30px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: transform 0.2s; }
+    .btn-end:active { transform: scale(0.95); }
 
-        /* --- CHAT AREA --- */
-        #chat-header { padding: 15px; background: #f0f0f0; border-bottom: 1px solid #ccc; display: flex; justify-content: space-between; align-items: center; height: 60px; }
-        #messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
-        
-        .message { max-width: 80%; padding: 8px 12px; border-radius: 8px; font-size: 15px; line-height: 1.4; position: relative; word-wrap: break-word; }
-        .message.mine { align-self: flex-end; background: var(--msg-me); border-top-right-radius: 0; }
-        .message.theirs { align-self: flex-start; background: var(--msg-other); border-top-left-radius: 0; }
-        .sender-name { font-size: 11px; font-weight: bold; color: var(--primary); display: block; margin-bottom: 2px; }
+    /* --- CHAT AREA --- */
+    #chat-header { padding: 15px; background: #f0f0f0; border-bottom: 1px solid #ccc; display: flex; justify-content: space-between; align-items: center; height: 60px; }
+    #messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+    
+    .message { max-width: 80%; padding: 8px 12px; border-radius: 8px; font-size: 15px; line-height: 1.4; position: relative; word-wrap: break-word; }
+    .message.mine { align-self: flex-end; background: var(--msg-me); border-top-right-radius: 0; }
+    .message.theirs { align-self: flex-start; background: var(--msg-other); border-top-left-radius: 0; }
+    .sender-name { font-size: 11px; font-weight: bold; color: var(--primary); display: block; margin-bottom: 2px; }
 
-        /* --- INPUT AREA --- */
-        .input-area { 
-            padding: 10px; background: #f0f0f0; display: flex; gap: 10px; align-items: center; 
-            padding-bottom: calc(10px + env(safe-area-inset-bottom));
-        }
-        .input-area input { flex: 1; padding: 12px; border-radius: 20px; border: 1px solid #ccc; outline: none; font-size: 16px; }
-        .input-area button { background: var(--primary); color: white; border: none; border-radius: 50%; width: 45px; height: 45px; font-size: 18px; }
+    /* --- INPUT AREA --- */
+    .input-area { 
+        padding: 10px; background: #f0f0f0; display: flex; gap: 10px; align-items: center; 
+        padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    }
+    .input-area input { flex: 1; padding: 12px; border-radius: 20px; border: 1px solid #ccc; outline: none; font-size: 16px; }
+    .input-area button { background: var(--primary); color: white; border: none; border-radius: 50%; width: 45px; height: 45px; font-size: 18px; }
 
-        /* --- SIDEBAR & MOBILE MENU --- */
-        .sidebar-header { padding: 15px; background: #232e3c; font-weight: bold; }
-        .controls { padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .controls input, .controls button { padding: 10px; border-radius: 5px; border: none; }
-        .controls button { background: #2b5278; color: white; cursor: pointer; }
+    /* --- SIDEBAR & MOBILE MENU --- */
+    .sidebar-header { padding: 15px; background: #232e3c; font-weight: bold; }
+    .controls { padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+    .controls input, .controls button { padding: 10px; border-radius: 5px; border: none; }
+    .controls button { background: #2b5278; color: white; cursor: pointer; }
 
-        .room-creation-group { display: flex; gap: 5px; }
-        .room-creation-group input[type="text"] { flex: 2; }
-        .room-creation-group input[type="number"] { flex: 1; }
+    .room-creation-group { display: flex; gap: 5px; }
+    .room-creation-group input[type="text"] { flex: 2; }
+    .room-creation-group input[type="number"] { flex: 1; }
 
-        #mobile-menu-btn { display: none; background: none; border: none; font-size: 24px; cursor: pointer; }
-        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90; display: none; }
-        
-        @media (max-width: 768px) {
-            .sidebar { position: absolute; left: -100%; top: 0; bottom: 0; z-index: 100; width: 85%; transition: 0.3s; box-shadow: 5px 0 15px rgba(0,0,0,0.5); }
-            .sidebar.active { left: 0; }
-            #mobile-menu-btn { display: block; margin-right: 15px; }
-            #overlay.active { display: block; }
-        }
-    </style>
+    #mobile-menu-btn { display: none; background: none; border: none; font-size: 24px; cursor: pointer; }
+    #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90; display: none; }
+    
+    @media (max-width: 768px) {
+        .sidebar { position: absolute; left: -100%; top: 0; bottom: 0; z-index: 100; width: 85%; transition: 0.3s; box-shadow: 5px 0 15px rgba(0,0,0,0.5); }
+        .sidebar.active { left: 0; }
+        #mobile-menu-btn { display: block; margin-right: 15px; }
+        #overlay.active { display: block; }
+    }
+
+    /* --- MODERN CALL MODALS (Glassmorphism) --- */
+    .call-modal {
+        display: none; position: fixed; inset: 0; 
+        background: radial-gradient(circle at center, #2b323b 0%, #0e1621 100%);
+        z-index: 9999; color: white; flex-direction: column; 
+        justify-content: center; align-items: center; font-family: -apple-system, sans-serif;
+    }
+    
+    .avatar-pulse {
+        width: 120px; height: 120px; background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        font-size: 50px; margin-bottom: 25px; box-shadow: 0 0 20px rgba(37, 117, 252, 0.5);
+        animation: pulse-ring 2s infinite;
+    }
+
+    @keyframes pulse-ring {
+        0% { box-shadow: 0 0 0 0 rgba(37, 117, 252, 0.7); }
+        70% { box-shadow: 0 0 0 30px rgba(37, 117, 252, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(37, 117, 252, 0); }
+    }
+
+    .call-info h2 { font-size: 28px; margin: 0; font-weight: 600; letter-spacing: 0.5px; }
+    .call-info p { font-size: 16px; color: rgba(255,255,255,0.6); margin-top: 8px; margin-bottom: 50px; }
+
+    .action-buttons { display: flex; gap: 40px; align-items: center; }
+    
+    .btn-call-action {
+        width: 70px; height: 70px; border-radius: 50%; border: none; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; font-size: 28px; color: white;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-call-action:active { transform: scale(0.9); }
+    .btn-accept { background: #4cd964; box-shadow: 0 4px 15px rgba(76, 217, 100, 0.4); animation: bounce 2s infinite; }
+    .btn-decline { background: #ff3b30; box-shadow: 0 4px 15px rgba(255, 59, 48, 0.4); }
+    
+    @keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(-10px);} 60% {transform: translateY(-5px);} }
+</style>
 </head>
 <body>
 
@@ -130,24 +177,46 @@
         </div>
     </div>
 
-    <script>
+<script>
         let pendingCaller = null;
         let pendingCallType = null;
-
         let ws;
         let username = "";
         let currentRoom = "global";
 
         // WEBRTC VARIABLES
         let activeCall = false;
-        let callType = null; // "audio" | "video"
+        let callType = null; 
         let localStream;
         const peerConnections = {};
         const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
+        // TIMEOUT & AUDIO VARIABLES
+        let callTimeoutTimer = null;
+        const CALL_TIMEOUT_MS = 40000; // 40 Seconds
+
         document.addEventListener("DOMContentLoaded", () => {
+            // Ensure modals are hidden on load
             document.getElementById("incoming-call").style.display = "none";
+            document.getElementById("outgoing-call").style.display = "none";
         });
+
+        // --- AUDIO HELPERS ---
+        function playRing(type) {
+            // type: 'outgoing' or 'incoming'
+            const audio = document.getElementById(`ring-${type}`);
+            if (audio) {
+                audio.currentTime = 0;
+                audio.play().catch(e => console.log("Audio play blocked (user must interact first)", e));
+            }
+        }
+
+        function stopRing() {
+            document.getElementById("ring-outgoing").pause();
+            document.getElementById("ring-outgoing").currentTime = 0;
+            document.getElementById("ring-incoming").pause();
+            document.getElementById("ring-incoming").currentTime = 0;
+        }
 
         function login() {
             const input = document.getElementById("username-input");
@@ -163,7 +232,6 @@
 
             ws.onmessage = async (event) => {
                 const data = JSON.parse(event.data);
-                
                 if (data.type === 'chat') {
                     addMessage(data.content, data.sender === username ? 'mine' : 'theirs', data.sender);
                 } else if (data.type === 'system') {
@@ -206,7 +274,6 @@
                 alert("Please enter a room name");
             }
         }
-
         function joinCustomRoom() {
             const name = document.getElementById("join-room-name").value.trim();
             if(name) joinRoom(name);
@@ -224,12 +291,9 @@
 
         // --- WEBRTC CALLING LOGIC ---
 
-        // 1. MODIFIED: sendSignal now accepts a 'target' to route the message correctly
         function sendSignal(data, target = null) {
             const payload = { action: "signal", data: data };
-            if (target) {
-                payload.target = target; // Backend uses this to route private messages
-            }
+            if (target) payload.target = target;
             ws.send(JSON.stringify(payload));
         }
 
@@ -238,40 +302,39 @@
                 alert("Create a private room to call.");
                 return;
             }
-        
-            callType = type; // Store intention
-
-            // 1. SHOW OUTGOING SCREEN IMMEDIATELY
+            callType = type; 
+            
+            // 1. Show Modern Outgoing Screen
             document.getElementById("outgoing-call").style.display = "flex";
-        
-            // 2. Send invite as before
+            
+            // 2. Play Outgoing Ring
+            playRing('outgoing');
+
+            // 3. Start 40s Timeout
+            if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+            callTimeoutTimer = setTimeout(() => {
+                cancelCall(); // Auto cancel
+                showToast("No answer, call ended.");
+            }, CALL_TIMEOUT_MS);
+
+            // 4. Send Invite
             sendSignal({ type: "call_invite", callType: type });
         }
 
         function cancelCall() {
-            // 1. Hide outgoing screen
+            // Stop Timeout & Sounds
+            if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+            stopRing();
+
             document.getElementById("outgoing-call").style.display = "none";
-
-            // 2. Tell the other side we gave up (stops their ringing)
             sendSignal({ type: "peer_left" }); 
-
             activeCall = false;
         }
+
         function showToast(text) {
             const t = document.createElement("div");
             t.innerText = text;
-            t.style.cssText = `
-                position:fixed;
-                bottom:80px;
-                left:50%;
-                transform:translateX(-50%);
-                background:#333;
-                color:#fff;
-                padding:10px 16px;
-                border-radius:20px;
-                z-index:9999;
-                font-size:14px;
-            `;
+            t.style.cssText = `position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#333; color:#fff; padding:10px 16px; border-radius:20px; z-index:9999; font-size:14px;`;
             document.body.appendChild(t);
             setTimeout(() => t.remove(), 3000);
         }
@@ -282,48 +345,54 @@
         
             // 🔔 INCOMING CALL
             if (data.type === "call_invite") {
-                    if (activeCall) return;
-                    if (sender === username) return;
+                if (activeCall) return;
+                if (sender === username) return;
             
-                    pendingCaller = sender;
-                    pendingCallType = data.callType;
+                pendingCaller = sender;
+                pendingCallType = data.callType;
             
-                    document.getElementById("caller-name").innerText = sender;
-                    document.getElementById("call-type").innerText =
-                        data.callType === "video" ? "Incoming Video Call" : "Incoming Voice Call";
+                document.getElementById("caller-name").innerText = sender;
+                document.getElementById("call-type").innerText = data.callType === "video" ? "Incoming Video Call" : "Incoming Voice Call";
             
-                    document.getElementById("incoming-call").style.display = "flex";
-                    return; 
-                }
+                // Show Screen & Play Sound
+                document.getElementById("incoming-call").style.display = "flex";
+                playRing('incoming');
 
-        
+                // Auto decline if I don't pick up in 40s (Syncs with caller)
+                if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+                callTimeoutTimer = setTimeout(() => {
+                    declineCall();
+                }, CALL_TIMEOUT_MS);
+                return; 
+            }
+
             // ✅ USER ACCEPTED
             if (data.type === "call_accept") {
-                    // HIDE THE "CALLING..." SCREEN
-                    document.getElementById("outgoing-call").style.display = "none";
-            
-                    if (!activeCall) {
-                        activeCall = true;
-                        document.getElementById("video-container").style.display = "flex";
-                        await initMedia(callType === "video");
-                    }
-                
-                    const pc = createPeerConnection(sender);
-                    const offer = await pc.createOffer();
-                    await pc.setLocalDescription(offer);
-                    sendSignal({ type: "offer", sdp: offer }, sender);
-                    return;
+                if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+                stopRing();
+                document.getElementById("outgoing-call").style.display = "none";
+
+                if (!activeCall) {
+                    activeCall = true;
+                    document.getElementById("video-container").style.display = "flex";
+                    await initMedia(callType === "video");
                 }
             
-                // ❌ USER DECLINED
-                if (data.type === "call_decline") {
-                    // HIDE THE "CALLING..." SCREEN
-                    document.getElementById("outgoing-call").style.display = "none";
-                
-                    showToast(`${sender} declined the call`);
-                    addMessage(`${sender} declined the call`, 'system', 'System');
-                    return;
-                }
+                const pc = createPeerConnection(sender);
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                sendSignal({ type: "offer", sdp: offer }, sender);
+                return;
+            }
+        
+            // ❌ USER DECLINED
+            if (data.type === "call_decline") {
+                if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+                stopRing();
+                document.getElementById("outgoing-call").style.display = "none";
+                showToast(`${sender} declined the call`);
+                return;
+            }
         
             // 📡 WEBRTC FLOW
             if (data.type === "offer") {
@@ -331,7 +400,6 @@
                 await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
-                // TARGET THE ANSWER BACK TO THE OFFERER
                 sendSignal({ type: "answer", sdp: answer }, sender);
                 return;
             }
@@ -350,27 +418,25 @@
             }
 
             if (data.type === "peer_left") {
-                    // IF WE ARE RINGING (INCOMING), HIDE IT BECAUSE THEY CANCELED
-                    document.getElementById("incoming-call").style.display = "none"; 
-                    
-                    // Existing logic
-                    if (peerConnections[sender]) {
-                        peerConnections[sender].close();
-                        delete peerConnections[sender];
-                    }
-                
-                    if (Object.keys(peerConnections).length === 0) {
-                        cleanupCall();
-                    }
-                    return;
-                }
+                // If ringing, stop ringing
+                document.getElementById("incoming-call").style.display = "none"; 
+                stopRing();
+                if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
 
-            // if (data.type === "call_end") {
-            //     cleanupCall();
-            // }
+                if (peerConnections[sender]) {
+                    peerConnections[sender].close();
+                    delete peerConnections[sender];
+                }
+                if (Object.keys(peerConnections).length === 0) {
+                    cleanupCall();
+                }
+                return;
+            }
         }
 
         async function acceptCall() {
+            if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+            stopRing();
             document.getElementById("incoming-call").style.display = "none";
         
             activeCall = true;
@@ -380,28 +446,33 @@
             await initMedia(callType === "video");
         
             sendSignal({ type: "call_accept" }, pendingCaller);
-        
             pendingCaller = null;
             pendingCallType = null;
         }
 
         function declineCall() {
+            if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+            stopRing();
             document.getElementById("incoming-call").style.display = "none";
-        
             sendSignal({ type: "call_decline" }, pendingCaller);
-        
             pendingCaller = null;
             pendingCallType = null;
         }
 
-
         async function initMedia(videoEnabled) {
             try {
                 if (!localStream) {
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        video: videoEnabled,
-                        audio: true
-                    });
+                    // HIGH QUALITY CONSTRAINTS
+                    const constraints = {
+                        audio: true,
+                        video: videoEnabled ? {
+                            width: { ideal: 1280 }, // HD Width
+                            height: { ideal: 720 }, // HD Height
+                            facingMode: "user"
+                        } : false
+                    };
+                    
+                    localStream = await navigator.mediaDevices.getUserMedia(constraints);
                     document.getElementById("localVideo").srcObject = localStream;
                 }
             } catch (e) {
@@ -419,7 +490,6 @@
             localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
         
             pc.ontrack = event => {
-                // Attach remote stream
                 const remoteVid = document.getElementById("remoteVideo");
                 if (remoteVid.srcObject !== event.streams[0]) {
                     remoteVid.srcObject = event.streams[0];
@@ -428,17 +498,11 @@
         
             pc.onicecandidate = event => {
                 if (event.candidate) {
-                    // Send candidate specifically to this peer
-                    sendSignal({
-                        type: 'candidate',
-                        candidate: event.candidate
-                    }, peerName);
+                    sendSignal({ type: 'candidate', candidate: event.candidate }, peerName);
                 }
             };
             
-            // Handle connection state changes for debugging
             pc.onconnectionstatechange = () => {
-                console.log(`Connection with ${peerName}: ${pc.connectionState}`);
                 if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
                     delete peerConnections[peerName];
                 }
@@ -449,28 +513,21 @@
 
         function cleanupCall() {
             document.getElementById("video-container").style.display = "none";
-        
-            for (const pc of Object.values(peerConnections)) {
-                pc.close();
-            }
-            
-            // Clear dictionary
+            stopRing();
+            for (const pc of Object.values(peerConnections)) pc.close();
             for (const key in peerConnections) delete peerConnections[key];
         
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
             }
-        
             activeCall = false;
         }
 
         function endCall() {
-            // Broadcast end to everyone involved
             sendSignal({ type: "peer_left" });
             cleanupCall();
         }
-        
 
         function toggleMenu() {
             document.getElementById("sidebar").classList.toggle("active");
@@ -556,6 +613,31 @@
         100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
     }
 </style>
+
+
+<audio id="ring-outgoing" loop src="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3"></audio> 
+<audio id="ring-incoming" loop src="https://assets.mixkit.co/active_storage/sfx/1361/1361-preview.mp3"></audio>
+
+<div id="outgoing-call" class="call-modal">
+    <div class="avatar-pulse">📞</div>
+    <div class="call-info" style="text-align: center;">
+        <h2>Calling...</h2>
+        <p>Waiting for response</p>
+    </div>
+    <button class="btn-call-action btn-decline" onclick="cancelCall()">✖</button>
+</div>
+
+<div id="incoming-call" class="call-modal">
+    <div class="avatar-pulse" style="background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);">🔔</div>
+    <div class="call-info" style="text-align: center;">
+        <h2 id="caller-name">Unknown</h2>
+        <p id="call-type">Incoming Call</p>
+    </div>
+    <div class="action-buttons">
+        <button class="btn-call-action btn-decline" onclick="declineCall()">✖</button>
+        <button class="btn-call-action btn-accept" onclick="acceptCall()">✔</button>
+    </div>
+</div>
 
 </body>
 </html>
