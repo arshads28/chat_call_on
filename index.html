@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Chat & Call</title>
+    <style>
+        :root { --primary: #0088cc; --bg: #e5ddd5; --sidebar: #17212b; --msg-me: #dcf8c6; --msg-other: #fff; }
+        * { box-sizing: border-box; }
+        
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100dvh; display: flex; overflow: hidden; background: #000; }
+
+        /* --- LOGIN --- */
+        #login-screen { position: fixed; inset: 0; background: #fff; z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+        #login-screen input { padding: 15px; font-size: 1.2rem; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 10px; width: 80%; max-width: 300px; }
+        #login-screen button { padding: 15px 30px; font-size: 1.2rem; background: var(--primary); color: white; border: none; border-radius: 8px; }
+
+        /* --- LAYOUT --- */
+        .sidebar { width: 300px; background: var(--sidebar); color: white; display: flex; flex-direction: column; border-right: 1px solid #444; }
+        .main-chat { flex: 1; display: flex; flex-direction: column; background: var(--bg); position: relative; height: 100%; }
+
+        /* --- VIDEO CALL OVERLAY --- */
+        #video-container { 
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #000; z-index: 500; flex-direction: column; 
+        }
+        #remoteVideo { width: 100%; height: 100%; object-fit: cover; }
+        #localVideo { 
+            position: absolute; bottom: 100px; right: 20px; width: 100px; height: 140px; 
+            border: 2px solid white; border-radius: 8px; object-fit: cover; background: #333; z-index: 501;
+        }
+        .call-controls { 
+            position: absolute; bottom: 30px; left: 0; width: 100%; 
+            display: flex; justify-content: center; gap: 20px; z-index: 502; 
+        }
+        .btn-end { background: #ff3b30; color: white; padding: 15px 30px; border-radius: 30px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+
+        /* --- CHAT AREA --- */
+        #chat-header { padding: 15px; background: #f0f0f0; border-bottom: 1px solid #ccc; display: flex; justify-content: space-between; align-items: center; height: 60px; }
+        #messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        
+        .message { max-width: 80%; padding: 8px 12px; border-radius: 8px; font-size: 15px; line-height: 1.4; position: relative; word-wrap: break-word; }
+        .message.mine { align-self: flex-end; background: var(--msg-me); border-top-right-radius: 0; }
+        .message.theirs { align-self: flex-start; background: var(--msg-other); border-top-left-radius: 0; }
+        .sender-name { font-size: 11px; font-weight: bold; color: var(--primary); display: block; margin-bottom: 2px; }
+
+        /* --- INPUT AREA --- */
+        .input-area { 
+            padding: 10px; background: #f0f0f0; display: flex; gap: 10px; align-items: center; 
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        }
+        .input-area input { flex: 1; padding: 12px; border-radius: 20px; border: 1px solid #ccc; outline: none; font-size: 16px; }
+        .input-area button { background: var(--primary); color: white; border: none; border-radius: 50%; width: 45px; height: 45px; font-size: 18px; }
+
+        /* --- SIDEBAR & MOBILE MENU --- */
+        .sidebar-header { padding: 15px; background: #232e3c; font-weight: bold; }
+        .controls { padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .controls input, .controls button { padding: 10px; border-radius: 5px; border: none; }
+        .controls button { background: #2b5278; color: white; cursor: pointer; }
+
+        /* Special styling for the Limit Input to make it fit nicely */
+        .room-creation-group { display: flex; gap: 5px; }
+        .room-creation-group input[type="text"] { flex: 2; }
+        .room-creation-group input[type="number"] { flex: 1; }
+
+        #mobile-menu-btn { display: none; background: none; border: none; font-size: 24px; cursor: pointer; }
+        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90; display: none; }
+        
+        @media (max-width: 768px) {
+            .sidebar { position: absolute; left: -100%; top: 0; bottom: 0; z-index: 100; width: 85%; transition: 0.3s; box-shadow: 5px 0 15px rgba(0,0,0,0.5); }
+            .sidebar.active { left: 0; }
+            #mobile-menu-btn { display: block; margin-right: 15px; }
+            #overlay.active { display: block; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <h2>Enter Name</h2>
+        <input type="text" id="username-input" placeholder="Your Name" />
+        <button onclick="login()">Enter Chat</button>
+    </div>
+
+    <div id="overlay" onclick="toggleMenu()"></div>
+
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">Chat Rooms</div>
+        <div class="controls">
+            <button onclick="joinRoom('global')">🌎 Global Chat</button>
+            <hr style="width:100%; border-color:#444;">
+            
+            <label style="font-size: 12px; color: #aaa;">Create Private Room</label>
+            <div class="room-creation-group">
+                <input type="text" id="new-room-name" placeholder="Name">
+                <input type="number" id="new-room-limit" placeholder="Max" min="2" max="10" value="2">
+            </div>
+            <button onclick="createRoom()">Create & Join</button>
+            
+            <hr style="width:100%; border-color:#444;">
+            <label style="font-size: 12px; color: #aaa;">Join Existing</label>
+            <input type="text" id="join-room-name" placeholder="Room Name">
+            <button onclick="joinCustomRoom()">Join</button>
+        </div>
+    </div>
+
+    <div class="main-chat">
+        
+        <div id="video-container">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <video id="localVideo" autoplay playsinline muted></video>
+            <div class="call-controls">
+                <button class="btn-end" onclick="endCall()">Hang Up</button>
+            </div>
+        </div>
+
+        <div id="chat-header">
+            <div style="display:flex; align-items:center;">
+                <button id="mobile-menu-btn" onclick="toggleMenu()">☰</button>
+                <span id="current-room-name" style="margin-left:10px;">Global Chat</span>
+            </div>
+            <button onclick="startCall()" style="background:none; border:none; font-size:24px; cursor:pointer;">📞</button>
+        </div>
+
+        <div id="messages"></div>
+
+        <div class="input-area">
+            <input type="text" id="msg-input" placeholder="Message..." onkeypress="handleKey(event)">
+            <button onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let username = "";
+        let currentRoom = "global";
+
+        // WEBRTC VARIABLES
+        let localStream;
+        let peerConnection;
+        const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        function login() {
+            const input = document.getElementById("username-input");
+            if (!input.value.trim()) return;
+            username = input.value.trim();
+            document.getElementById("login-screen").style.display = "none";
+            connectWebSocket();
+        }
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws?username=${encodeURIComponent(username)}`);
+
+            ws.onmessage = async (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'chat') {
+                    addMessage(data.content, data.sender === username ? 'mine' : 'theirs', data.sender);
+                } else if (data.type === 'system') {
+                    addMessage(data.content, 'system', 'System');
+                } else if (data.type === 'signal') {
+                    handleSignal(data);
+                } else if (data.type === 'error') {
+                    alert(data.content); // Show error if room is full
+                }
+            };
+        }
+
+        function sendMessage() {
+            const input = document.getElementById("msg-input");
+            if (!input.value.trim()) return;
+            ws.send(JSON.stringify({ action: "message", content: input.value.trim() }));
+            input.value = "";
+        }
+        function handleKey(e) { if(e.key === "Enter") sendMessage(); }
+
+        function addMessage(text, type, sender) {
+            const box = document.getElementById("messages");
+            const div = document.createElement("div");
+            div.className = `message ${type}`;
+            if(type === 'theirs') div.innerHTML = `<span class="sender-name">${sender}</span>${text}`;
+            else div.innerText = text;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // --- ROOMS (UPDATED) ---
+        function createRoom() {
+            const name = document.getElementById("new-room-name").value.trim();
+            // Get the limit from the input box, default to 2 if empty
+            const limit = document.getElementById("new-room-limit").value || 2;
+            
+            if(name) {
+                // Send BOTH name and limit to server
+                ws.send(JSON.stringify({ 
+                    action: "create_room", 
+                    name: name, 
+                    limit: limit 
+                }));
+                updateHeader(name);
+                toggleMenu();
+            } else {
+                alert("Please enter a room name");
+            }
+        }
+
+        function joinCustomRoom() {
+            const name = document.getElementById("join-room-name").value.trim();
+            if(name) joinRoom(name);
+        }
+        function joinRoom(name) {
+            ws.send(JSON.stringify({ action: "join_room", name: name }));
+            updateHeader(name);
+            toggleMenu();
+        }
+        function updateHeader(name) {
+            currentRoom = name;
+            document.getElementById("current-room-name").innerText = name === 'global' ? 'Global Chat' : name;
+            document.getElementById("messages").innerHTML = '';
+        }
+
+        // --- WEBRTC CALLING LOGIC ---
+        async function startCall() {
+            if (currentRoom === 'global') return alert("Create a private room to call.");
+            
+            document.getElementById("video-container").style.display = 'flex';
+            await initMedia();
+            createPeerConnection();
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            
+            sendSignal({ type: 'offer', sdp: offer });
+        }
+
+        async function handleSignal(msg) {
+            const data = msg.data;
+            if (data.type === 'offer') {
+                if(confirm(`Incoming call from ${msg.sender}. Accept?`)) {
+                    document.getElementById("video-container").style.display = 'flex';
+                    await initMedia();
+                    createPeerConnection();
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+                    sendSignal({ type: 'answer', sdp: answer });
+                }
+            } else if (data.type === 'answer') {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            } else if (data.type === 'candidate') {
+                if (peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        }
+
+        function sendSignal(data) {
+            ws.send(JSON.stringify({ action: "signal", data: data }));
+        }
+
+        async function initMedia() {
+            if (!localStream) {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById("localVideo").srcObject = localStream;
+            }
+        }
+
+        function createPeerConnection() {
+            peerConnection = new RTCPeerConnection(rtcConfig);
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            peerConnection.ontrack = event => {
+                document.getElementById("remoteVideo").srcObject = event.streams[0];
+            };
+            peerConnection.onicecandidate = event => {
+                if (event.candidate) sendSignal({ type: 'candidate', candidate: event.candidate });
+            };
+        }
+
+        function endCall() {
+            document.getElementById("video-container").style.display = 'none';
+            if(peerConnection) peerConnection.close();
+            if(localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+        }
+
+        function toggleMenu() {
+            document.getElementById("sidebar").classList.toggle("active");
+            document.getElementById("overlay").classList.toggle("active");
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
