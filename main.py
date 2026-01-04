@@ -1,15 +1,16 @@
 import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import HTMLResponse
-from typing import Dict, List
+from typing import Dict
 
 app = FastAPI()
 
 # --- ROOM MANAGER ---
 class Room:
-    def __init__(self, name: str, limit: int = 2):
+    def __init__(self, name: str, limit: int = 2, password: str = ""):
         self.name = name
         self.limit = limit
+        self.password = password
         self.connections: Dict[str, WebSocket] = {}
 
     def is_full(self):
@@ -26,11 +27,10 @@ class Room:
         for name in to_remove:
             del self.connections[name]
 
-    # New: Send signal ONLY to other peers (not self)
     async def broadcast_signal(self, sender_name: str, signal_data: dict):
         to_remove = []
         for name, ws in self.connections.items():
-            if name != sender_name: # Don't send back to self
+            if name != sender_name:
                 try:
                     await ws.send_text(json.dumps({
                         "type": "signal",
@@ -45,20 +45,34 @@ class Room:
 class RoomManager:
     def __init__(self):
         self.rooms: Dict[str, Room] = {}
-        self.create_room("global", limit=1000)
+        self.create_room("global", limit=1000, password="")
 
-    def create_room(self, name: str, limit: int):
+    def create_room(self, name: str, limit: int, password: str = ""):
         if name not in self.rooms:
-            self.rooms[name] = Room(name, limit)
+            self.rooms[name] = Room(name, limit, password)
             return True
         return False
 
-    async def join_room(self, name: str, username: str, websocket: WebSocket):
-        if name not in self.rooms: return False, "Room missing."
+    async def join_room(self, name: str, username: str, websocket: WebSocket, password: str = ""):
+        if name not in self.rooms: 
+            return False, "Room missing."
+        
         room = self.rooms[name]
-        if room.is_full(): return False, "Room is full."
+        
+        if room.password and room.password != password:
+            return False, "Incorrect Password."
+        
+        if room.is_full(): 
+            return False, "Room is full."
+        
         room.connections[username] = websocket
+        
+        # 1. Notify others
         await room.broadcast({"type": "system", "content": f"{username} joined."}, sender_name="System")
+        
+        # 2. Tell the specific user they joined successfully (Triggers UI switch/clear)
+        await websocket.send_json({"type": "room_joined", "name": name})
+        
         return True, "Joined"
 
     async def leave_room(self, name: str, username: str):
@@ -94,28 +108,31 @@ async def websocket_endpoint(websocket: WebSocket, username: str = Query(...)):
                     }, sender_name=username)
 
             elif action == "signal":
-                # Handle WebRTC Signaling (Offer/Answer/Candidate)
                 if current_room in manager.rooms:
                     await manager.rooms[current_room].broadcast_signal(username, msg_data["data"])
 
             elif action == "create_room":
                 room_name = msg_data["name"]
                 limit = int(msg_data.get("limit", 2))
-                if manager.create_room(room_name, limit):
+                password = msg_data.get("password", "")
+
+                if manager.create_room(room_name, limit, password):
                     await manager.leave_room(current_room, username)
                     current_room = room_name
-                    await manager.join_room(current_room, username, websocket)
-                    await websocket.send_json({"type": "system", "content": f"Room '{room_name}' created."})
+                    # Join sends the "room_joined" event to clear chat
+                    await manager.join_room(current_room, username, websocket, password)
                 else:
                     await websocket.send_json({"type": "error", "content": f"Room '{room_name}' exists."})
 
             elif action == "join_room":
                 room_name = msg_data["name"]
+                password = msg_data.get("password", "")
+
                 await manager.leave_room(current_room, username)
-                success, response = await manager.join_room(room_name, username, websocket)
+                success, response = await manager.join_room(room_name, username, websocket, password)
+                
                 if success:
                     current_room = room_name
-                    await websocket.send_json({"type": "system", "content": f"Joined {room_name}"})
                 else:
                     await manager.join_room("global", username, websocket)
                     current_room = "global"
@@ -123,11 +140,3 @@ async def websocket_endpoint(websocket: WebSocket, username: str = Query(...)):
 
     except WebSocketDisconnect:
         await manager.leave_room(current_room, username)
-
-
-
-
-
-
-
-        

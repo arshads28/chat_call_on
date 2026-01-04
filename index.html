@@ -25,17 +25,11 @@
         background: #000; z-index: 500; flex-direction: column; align-items: center; justify-content: center;
     }
     
-    /* FIX: object-fit: contain prevents zooming/cropping. High quality feel. */
-    #remoteVideo { 
-        width: 100%; height: 100%; 
-        object-fit: contain; /* Shows full video without cropping */
-        background: #000;
-    }
+    #remoteVideo { width: 100%; height: 100%; object-fit: contain; background: #000; }
     #localVideo { 
         position: absolute; bottom: 100px; right: 20px; width: 120px; height: 160px; 
         border: 2px solid rgba(255,255,255,0.5); border-radius: 12px; 
-        object-fit: cover; /* Local video can be cropped to fit the small box */
-        background: #333; z-index: 501;
+        object-fit: cover; background: #333; z-index: 501;
         box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }
     .call-controls { 
@@ -68,9 +62,9 @@
     .controls input, .controls button { padding: 10px; border-radius: 5px; border: none; }
     .controls button { background: #2b5278; color: white; cursor: pointer; }
 
-    .room-creation-group { display: flex; gap: 5px; }
-    .room-creation-group input[type="text"] { flex: 2; }
-    .room-creation-group input[type="number"] { flex: 1; }
+    .room-creation-group { display: flex; gap: 5px; flex-wrap: wrap; }
+    .room-creation-group input { flex: 1; min-width: 40%; }
+    .pass-input { width: 100%; margin-top: 5px; }
 
     #mobile-menu-btn { display: none; background: none; border: none; font-size: 24px; cursor: pointer; }
     #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90; display: none; }
@@ -82,32 +76,29 @@
         #overlay.active { display: block; }
     }
 
-    /* --- MODERN CALL MODALS (Glassmorphism) --- */
+    /* --- CALL MODALS (Ensured visibility) --- */
     .call-modal {
-        display: none; position: fixed; inset: 0; 
+        display: none; /* Toggled by JS to 'flex' */
+        position: fixed; inset: 0; 
         background: radial-gradient(circle at center, #2b323b 0%, #0e1621 100%);
-        z-index: 9999; color: white; flex-direction: column; 
+        z-index: 10000; /* Extremely high Z-Index */
+        color: white; flex-direction: column; 
         justify-content: center; align-items: center; font-family: -apple-system, sans-serif;
     }
-    
     .avatar-pulse {
         width: 120px; height: 120px; background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
         border-radius: 50%; display: flex; align-items: center; justify-content: center;
         font-size: 50px; margin-bottom: 25px; box-shadow: 0 0 20px rgba(37, 117, 252, 0.5);
         animation: pulse-ring 2s infinite;
     }
-
     @keyframes pulse-ring {
         0% { box-shadow: 0 0 0 0 rgba(37, 117, 252, 0.7); }
         70% { box-shadow: 0 0 0 30px rgba(37, 117, 252, 0); }
         100% { box-shadow: 0 0 0 0 rgba(37, 117, 252, 0); }
     }
-
     .call-info h2 { font-size: 28px; margin: 0; font-weight: 600; letter-spacing: 0.5px; }
     .call-info p { font-size: 16px; color: rgba(255,255,255,0.6); margin-top: 8px; margin-bottom: 50px; }
-
     .action-buttons { display: flex; gap: 40px; align-items: center; }
-    
     .btn-call-action {
         width: 70px; height: 70px; border-radius: 50%; border: none; cursor: pointer;
         display: flex; align-items: center; justify-content: center; font-size: 28px; color: white;
@@ -116,7 +107,6 @@
     .btn-call-action:active { transform: scale(0.9); }
     .btn-accept { background: #4cd964; box-shadow: 0 4px 15px rgba(76, 217, 100, 0.4); animation: bounce 2s infinite; }
     .btn-decline { background: #ff3b30; box-shadow: 0 4px 15px rgba(255, 59, 48, 0.4); }
-    
     @keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(-10px);} 60% {transform: translateY(-5px);} }
 </style>
 </head>
@@ -140,12 +130,14 @@
             <div class="room-creation-group">
                 <input type="text" id="new-room-name" placeholder="Name">
                 <input type="number" id="new-room-limit" placeholder="Max" min="2" max="10" value="2">
+                <input type="password" id="new-room-pass" class="pass-input" placeholder="Password (Optional)">
             </div>
             <button onclick="createRoom()">Create & Join</button>
             
             <hr style="width:100%; border-color:#444;">
             <label style="font-size: 12px; color: #aaa;">Join Existing</label>
             <input type="text" id="join-room-name" placeholder="Room Name">
+            <input type="password" id="join-room-pass" class="pass-input" placeholder="Password">
             <button onclick="joinCustomRoom()">Join</button>
         </div>
     </div>
@@ -177,6 +169,30 @@
         </div>
     </div>
 
+    <audio id="ring-outgoing" loop src="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3"></audio> 
+    <audio id="ring-incoming" loop src="https://assets.mixkit.co/active_storage/sfx/1361/1361-preview.mp3"></audio>
+
+    <div id="outgoing-call" class="call-modal">
+        <div class="avatar-pulse">📞</div>
+        <div class="call-info" style="text-align: center;">
+            <h2>Calling...</h2>
+            <p>Waiting for response</p>
+        </div>
+        <button class="btn-call-action btn-decline" onclick="cancelCall()">✖</button>
+    </div>
+
+    <div id="incoming-call" class="call-modal">
+        <div class="avatar-pulse" style="background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);">🔔</div>
+        <div class="call-info" style="text-align: center;">
+            <h2 id="caller-name">Unknown</h2>
+            <p id="call-type">Incoming Call</p>
+        </div>
+        <div class="action-buttons">
+            <button class="btn-call-action btn-decline" onclick="declineCall()">✖</button>
+            <button class="btn-call-action btn-accept" onclick="acceptCall()">✔</button>
+        </div>
+    </div>
+
 <script>
         let pendingCaller = null;
         let pendingCallType = null;
@@ -193,21 +209,19 @@
 
         // TIMEOUT & AUDIO VARIABLES
         let callTimeoutTimer = null;
-        const CALL_TIMEOUT_MS = 40000; // 40 Seconds
+        const CALL_TIMEOUT_MS = 40000; 
 
         document.addEventListener("DOMContentLoaded", () => {
-            // Ensure modals are hidden on load
+            // Explicitly hide on load to be safe
             document.getElementById("incoming-call").style.display = "none";
             document.getElementById("outgoing-call").style.display = "none";
         });
 
-        // --- AUDIO HELPERS ---
         function playRing(type) {
-            // type: 'outgoing' or 'incoming'
             const audio = document.getElementById(`ring-${type}`);
             if (audio) {
                 audio.currentTime = 0;
-                audio.play().catch(e => console.log("Audio play blocked (user must interact first)", e));
+                audio.play().catch(e => console.log("Audio play blocked", e));
             }
         }
 
@@ -232,7 +246,19 @@
 
             ws.onmessage = async (event) => {
                 const data = JSON.parse(event.data);
-                if (data.type === 'chat') {
+                
+                if (data.type === 'room_joined') {
+                    // --- SUCCESSFUL ROOM SWITCH ---
+                    // 1. Update State
+                    currentRoom = data.name;
+                    // 2. Clear Chat
+                    document.getElementById("messages").innerHTML = '';
+                    // 3. Update Header
+                    document.getElementById("current-room-name").innerText = data.name === 'global' ? 'Global Chat' : data.name;
+                    // 4. Add System msg
+                    addMessage(`Joined room: ${data.name}`, 'system', 'System');
+                
+                } else if (data.type === 'chat') {
                     addMessage(data.content, data.sender === username ? 'mine' : 'theirs', data.sender);
                 } else if (data.type === 'system') {
                     addMessage(data.content, 'system', 'System');
@@ -262,35 +288,30 @@
             box.scrollTop = box.scrollHeight;
         }
 
-        // --- ROOMS ---
         function createRoom() {
             const name = document.getElementById("new-room-name").value.trim();
             const limit = document.getElementById("new-room-limit").value || 2;
+            const password = document.getElementById("new-room-pass").value.trim();
             if(name) {
-                ws.send(JSON.stringify({ action: "create_room", name: name, limit: limit }));
-                updateHeader(name);
+                ws.send(JSON.stringify({ action: "create_room", name: name, limit: limit, password: password }));
                 toggleMenu();
             } else {
                 alert("Please enter a room name");
             }
         }
+
         function joinCustomRoom() {
             const name = document.getElementById("join-room-name").value.trim();
-            if(name) joinRoom(name);
+            const password = document.getElementById("join-room-pass").value.trim();
+            if(name) joinRoom(name, password);
         }
-        function joinRoom(name) {
-            ws.send(JSON.stringify({ action: "join_room", name: name }));
-            updateHeader(name);
+
+        function joinRoom(name, password="") {
+            ws.send(JSON.stringify({ action: "join_room", name: name, password: password }));
             toggleMenu();
         }
-        function updateHeader(name) {
-            currentRoom = name;
-            document.getElementById("current-room-name").innerText = name === 'global' ? 'Global Chat' : name;
-            document.getElementById("messages").innerHTML = '';
-        }
 
-        // --- WEBRTC CALLING LOGIC ---
-
+        // --- WEBRTC ---
         function sendSignal(data, target = null) {
             const payload = { action: "signal", data: data };
             if (target) payload.target = target;
@@ -303,29 +324,19 @@
                 return;
             }
             callType = type; 
-            
-            // 1. Show Modern Outgoing Screen
             document.getElementById("outgoing-call").style.display = "flex";
-            
-            // 2. Play Outgoing Ring
             playRing('outgoing');
-
-            // 3. Start 40s Timeout
             if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
             callTimeoutTimer = setTimeout(() => {
-                cancelCall(); // Auto cancel
+                cancelCall(); 
                 showToast("No answer, call ended.");
             }, CALL_TIMEOUT_MS);
-
-            // 4. Send Invite
             sendSignal({ type: "call_invite", callType: type });
         }
 
         function cancelCall() {
-            // Stop Timeout & Sounds
             if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
             stopRing();
-
             document.getElementById("outgoing-call").style.display = "none";
             sendSignal({ type: "peer_left" }); 
             activeCall = false;
@@ -343,41 +354,29 @@
             const data = msg.data;
             const sender = msg.sender;
         
-            // 🔔 INCOMING CALL
             if (data.type === "call_invite") {
                 if (activeCall) return;
                 if (sender === username) return;
-            
                 pendingCaller = sender;
                 pendingCallType = data.callType;
-            
                 document.getElementById("caller-name").innerText = sender;
                 document.getElementById("call-type").innerText = data.callType === "video" ? "Incoming Video Call" : "Incoming Voice Call";
-            
-                // Show Screen & Play Sound
                 document.getElementById("incoming-call").style.display = "flex";
                 playRing('incoming');
-
-                // Auto decline if I don't pick up in 40s (Syncs with caller)
                 if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-                callTimeoutTimer = setTimeout(() => {
-                    declineCall();
-                }, CALL_TIMEOUT_MS);
+                callTimeoutTimer = setTimeout(() => { declineCall(); }, CALL_TIMEOUT_MS);
                 return; 
             }
 
-            // ✅ USER ACCEPTED
             if (data.type === "call_accept") {
                 if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
                 stopRing();
                 document.getElementById("outgoing-call").style.display = "none";
-
                 if (!activeCall) {
                     activeCall = true;
                     document.getElementById("video-container").style.display = "flex";
                     await initMedia(callType === "video");
                 }
-            
                 const pc = createPeerConnection(sender);
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
@@ -385,7 +384,6 @@
                 return;
             }
         
-            // ❌ USER DECLINED
             if (data.type === "call_decline") {
                 if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
                 stopRing();
@@ -394,7 +392,6 @@
                 return;
             }
         
-            // 📡 WEBRTC FLOW
             if (data.type === "offer") {
                 const pc = createPeerConnection(sender);
                 await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
@@ -403,33 +400,22 @@
                 sendSignal({ type: "answer", sdp: answer }, sender);
                 return;
             }
-        
             if (data.type === "answer") {
-                if (peerConnections[sender]) {
-                    await peerConnections[sender].setRemoteDescription(new RTCSessionDescription(data.sdp));
-                }
+                if (peerConnections[sender]) await peerConnections[sender].setRemoteDescription(new RTCSessionDescription(data.sdp));
                 return;
             }
-        
             if (data.type === "candidate") {
-                if (peerConnections[sender]) {
-                    await peerConnections[sender].addIceCandidate(new RTCIceCandidate(data.candidate));
-                }
+                if (peerConnections[sender]) await peerConnections[sender].addIceCandidate(new RTCIceCandidate(data.candidate));
             }
-
             if (data.type === "peer_left") {
-                // If ringing, stop ringing
                 document.getElementById("incoming-call").style.display = "none"; 
                 stopRing();
                 if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-
                 if (peerConnections[sender]) {
                     peerConnections[sender].close();
                     delete peerConnections[sender];
                 }
-                if (Object.keys(peerConnections).length === 0) {
-                    cleanupCall();
-                }
+                if (Object.keys(peerConnections).length === 0) cleanupCall();
                 return;
             }
         }
@@ -438,13 +424,10 @@
             if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
             stopRing();
             document.getElementById("incoming-call").style.display = "none";
-        
             activeCall = true;
             callType = pendingCallType;
-        
             document.getElementById("video-container").style.display = "flex";
             await initMedia(callType === "video");
-        
             sendSignal({ type: "call_accept" }, pendingCaller);
             pendingCaller = null;
             pendingCallType = null;
@@ -462,16 +445,10 @@
         async function initMedia(videoEnabled) {
             try {
                 if (!localStream) {
-                    // HIGH QUALITY CONSTRAINTS
                     const constraints = {
                         audio: true,
-                        video: videoEnabled ? {
-                            width: { ideal: 1280 }, // HD Width
-                            height: { ideal: 720 }, // HD Height
-                            facingMode: "user"
-                        } : false
+                        video: videoEnabled ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" } : false
                     };
-                    
                     localStream = await navigator.mediaDevices.getUserMedia(constraints);
                     document.getElementById("localVideo").srcObject = localStream;
                 }
@@ -483,31 +460,19 @@
 
         function createPeerConnection(peerName) {
             if (peerConnections[peerName]) return peerConnections[peerName];
-
             const pc = new RTCPeerConnection(rtcConfig);
             peerConnections[peerName] = pc;
-        
             localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-        
             pc.ontrack = event => {
                 const remoteVid = document.getElementById("remoteVideo");
-                if (remoteVid.srcObject !== event.streams[0]) {
-                    remoteVid.srcObject = event.streams[0];
-                }
+                if (remoteVid.srcObject !== event.streams[0]) remoteVid.srcObject = event.streams[0];
             };
-        
             pc.onicecandidate = event => {
-                if (event.candidate) {
-                    sendSignal({ type: 'candidate', candidate: event.candidate }, peerName);
-                }
+                if (event.candidate) sendSignal({ type: 'candidate', candidate: event.candidate }, peerName);
             };
-            
             pc.onconnectionstatechange = () => {
-                if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-                    delete peerConnections[peerName];
-                }
+                if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') delete peerConnections[peerName];
             };
-        
             return pc;
         }
 
@@ -516,7 +481,6 @@
             stopRing();
             for (const pc of Object.values(peerConnections)) pc.close();
             for (const key in peerConnections) delete peerConnections[key];
-        
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
@@ -534,110 +498,5 @@
             document.getElementById("overlay").classList.toggle("active");
         }
     </script>
-<div id="incoming-call" style="
-    display:none;
-    position:fixed;
-    inset:0;
-    background:rgba(0,0,0,0.85);
-    z-index:9999;
-    color:white;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    align-items:center;
-    font-family:system-ui;
-">
-    <h2 id="caller-name" style="margin-bottom:10px;"></h2>
-    <p id="call-type" style="opacity:.8;margin-bottom:30px;"></p>
-
-    <div style="display:flex;gap:20px;">
-        <button onclick="acceptCall()" style="
-            background:#22c55e;
-            border:none;
-            color:white;
-            font-size:18px;
-            padding:14px 28px;
-            border-radius:999px;
-            cursor:pointer;
-        ">Accept</button>
-
-        <button onclick="declineCall()" style="
-            background:#ef4444;
-            border:none;
-            color:white;
-            font-size:18px;
-            padding:14px 28px;
-            border-radius:999px;
-            cursor:pointer;
-        ">Decline</button>
-    </div>
-</div>
-
-
-<div id="outgoing-call" style="
-    display:none;
-    position:fixed;
-    inset:0;
-    background:rgba(0,0,0,0.9);
-    z-index:9999;
-    color:white;
-    flex-direction:column;
-    justify-content:center;
-    align-items:center;
-    font-family:system-ui;
-">
-    <div style="
-        width: 100px; height: 100px; background: #333; border-radius: 50%; 
-        display: flex; align-items: center; justify-content: center; font-size: 40px; margin-bottom: 20px;
-        animation: pulse 1.5s infinite;
-    ">📞</div>
-    <h2 style="margin-bottom:10px;">Calling...</h2>
-    <p style="opacity:.7; margin-bottom:40px;">Waiting for response</p>
-
-    <button onclick="cancelCall()" style="
-        background:#ff3b30;
-        border:none;
-        color:white;
-        font-size:18px;
-        padding:15px 40px;
-        border-radius:30px;
-        cursor:pointer;
-        font-weight: bold;
-    ">End Call</button>
-</div>
-
-<style>
-    @keyframes pulse {
-        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
-        70% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(255, 255, 255, 0); }
-        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
-    }
-</style>
-
-
-<audio id="ring-outgoing" loop src="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3"></audio> 
-<audio id="ring-incoming" loop src="https://assets.mixkit.co/active_storage/sfx/1361/1361-preview.mp3"></audio>
-
-<div id="outgoing-call" class="call-modal">
-    <div class="avatar-pulse">📞</div>
-    <div class="call-info" style="text-align: center;">
-        <h2>Calling...</h2>
-        <p>Waiting for response</p>
-    </div>
-    <button class="btn-call-action btn-decline" onclick="cancelCall()">✖</button>
-</div>
-
-<div id="incoming-call" class="call-modal">
-    <div class="avatar-pulse" style="background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);">🔔</div>
-    <div class="call-info" style="text-align: center;">
-        <h2 id="caller-name">Unknown</h2>
-        <p id="call-type">Incoming Call</p>
-    </div>
-    <div class="action-buttons">
-        <button class="btn-call-action btn-decline" onclick="declineCall()">✖</button>
-        <button class="btn-call-action btn-accept" onclick="acceptCall()">✔</button>
-    </div>
-</div>
-
 </body>
 </html>
