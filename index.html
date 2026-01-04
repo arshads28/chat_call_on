@@ -47,7 +47,33 @@
     .message.mine { align-self: flex-end; background: var(--msg-me); border-top-right-radius: 0; }
     .message.theirs { align-self: flex-start; background: var(--msg-other); border-top-left-radius: 0; }
     .sender-name { font-size: 11px; font-weight: bold; color: var(--primary); display: block; margin-bottom: 2px; }
+    .message .meta {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-top: 2px;
+        font-size: 10px;
+        color: rgba(0,0,0,0.45);
+    }
 
+    .message.mine .meta { color: rgba(255,255,255,0.7); }
+
+    .tick {
+        margin-left: 5px;
+        font-weight: bold;
+        display: inline-block;
+        width: 15px;
+    }
+
+    /* Single Tick (Grey) */
+    .tick.sent::after { content: "✓"; }
+    
+    /* Double Tick (Grey) */
+    .tick.delivered::after { content: "✓✓"; letter-spacing: -2px; }
+    
+    /* Blue Tick */
+    .tick.read { color: #4fc3f7; }
+    .tick.read::after { content: "✓✓"; letter-spacing: -2px; }
     /* --- INPUT AREA --- */
     .input-area { 
         padding: 10px; background: #f0f0f0; display: flex; gap: 10px; align-items: center; 
@@ -240,53 +266,128 @@
             connectWebSocket();
         }
 
-        function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${window.location.host}/ws?username=${encodeURIComponent(username)}`);
+function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws?username=${encodeURIComponent(username)}`);
 
-            ws.onmessage = async (event) => {
-                const data = JSON.parse(event.data);
-                
-                if (data.type === 'room_joined') {
-                    // --- SUCCESSFUL ROOM SWITCH ---
-                    // 1. Update State
-                    currentRoom = data.name;
-                    // 2. Clear Chat
-                    document.getElementById("messages").innerHTML = '';
-                    // 3. Update Header
-                    document.getElementById("current-room-name").innerText = data.name === 'global' ? 'Global Chat' : data.name;
-                    // 4. Add System msg
-                    addMessage(`Joined room: ${data.name}`, 'system', 'System');
-                
-                } else if (data.type === 'chat') {
-                    addMessage(data.content, data.sender === username ? 'mine' : 'theirs', data.sender);
-                } else if (data.type === 'system') {
-                    addMessage(data.content, 'system', 'System');
-                } else if (data.type === 'signal') {
-                    handleSignal(data);
-                } else if (data.type === 'error') {
-                    alert(data.content);
+        ws.onmessage = async (event) => {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'room_joined') {
+                currentRoom = data.name;
+                document.getElementById("messages").innerHTML = '';
+                document.getElementById("current-room-name").innerText = data.name;
+                addMessage(`Joined room: ${data.name}`, 'system', 'System');
+            
+            } else if (data.type === 'user_joined') {
+                addMessage(data.content, 'system', 'System');
+                // Visually mark all my pending messages as Read (Blue Tick).
+                if (data.username !== username) {
+                    markAllAsRead();
                 }
-            };
-        }
 
+            } else if (data.type === 'chat') {
+                if (data.sender === username) return;
+
+                addMessage(data.content, 'theirs', data.sender, data.id);
+                ws.send(JSON.stringify({ action: "status_delivered", id: data.id }));
+
+                if (!document.hidden) {
+                    ws.send(JSON.stringify({ action: "status_read", id: data.id }));
+                }
+
+            } else if (data.type === 'status_update') {
+                updateMessageStatus(data.msg_id, data.status);
+            
+            } else if (data.type === 'system') {
+                addMessage(data.content, 'system', 'System');
+            } else if (data.type === 'signal') {
+                handleSignal(data);
+            } else if (data.type === 'error') {
+                alert(data.content);
+            }
+        };
+    }
+
+
+    function markAllAsRead() {
+        // Select all ticks that are NOT yet blue
+        const ticks = document.querySelectorAll('.tick:not(.read)');
+        ticks.forEach(tick => {
+            tick.classList.remove('sent', 'delivered');
+            tick.classList.add('read'); // Force Blue Tick
+        });
+    }
+
+        function updateMessageStatus(msgId, status) {
+                // status is 'delivered' or 'read'
+                const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
+                if (msgDiv) {
+                    const tick = msgDiv.querySelector('.tick');
+                    if (tick) {
+                        // If it's already read, don't go back to delivered
+                        if (tick.classList.contains('read')) return;
+                    
+                        // Remove old classes
+                        tick.classList.remove('sent', 'delivered');
+                        // Add new class
+                        tick.classList.add(status);
+                    }
+                }
+            }
+
+        function generateId() {
+                return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+            }
+        
+        
         function sendMessage() {
-            const input = document.getElementById("msg-input");
-            if (!input.value.trim()) return;
-            ws.send(JSON.stringify({ action: "message", content: input.value.trim() }));
-            input.value = "";
-        }
+                const input = document.getElementById("msg-input");
+                if (!input.value.trim()) return;
+
+                const msgId = generateId();
+                const content = input.value.trim();
+        
+                // Send to server
+                ws.send(JSON.stringify({ 
+                    action: "message", 
+                    content: content, 
+                    id: msgId 
+                }));
+            
+                // Render immediately as "Sent" (Single Tick)
+                addMessage(content, 'mine', 'Me', msgId, 'sent');
+
+                input.value = "";
+            }
         function handleKey(e) { if(e.key === "Enter") sendMessage(); }
 
-        function addMessage(text, type, sender) {
-            const box = document.getElementById("messages");
-            const div = document.createElement("div");
-            div.className = `message ${type}`;
-            if(type === 'theirs') div.innerHTML = `<span class="sender-name">${sender}</span>${text}`;
-            else div.innerText = text;
-            box.appendChild(div);
-            box.scrollTop = box.scrollHeight;
-        }
+        function addMessage(text, type, sender, msgId = null, initialStatus = '') {
+                const box = document.getElementById("messages");
+                const div = document.createElement("div");
+                div.className = `message ${type}`;
+
+                // Store ID in the DOM element so we can find it later
+                if (msgId) div.setAttribute("data-id", msgId);
+        
+                let html = '';
+                if (type === 'theirs') {
+                    html += `<span class="sender-name">${sender}</span>`;
+                }
+
+                html += `${text}`;
+            
+                // Only add ticks to MY messages
+                if (type === 'mine') {
+                    html += `<div class="meta">
+                                <span class="tick ${initialStatus}"></span>
+                             </div>`;
+                }
+            
+                div.innerHTML = html;
+                box.appendChild(div);
+                box.scrollTop = box.scrollHeight;
+            }
 
         function createRoom() {
             const name = document.getElementById("new-room-name").value.trim();

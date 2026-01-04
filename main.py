@@ -68,7 +68,7 @@ class RoomManager:
         room.connections[username] = websocket
         
         # 1. Notify others
-        await room.broadcast({"type": "system", "content": f"{username} joined."}, sender_name="System")
+        await room.broadcast({"type": "user_joined", "username": username,"content": f"{username} joined."}, sender_name="System")
         
         # 2. Tell the specific user they joined successfully (Triggers UI switch/clear)
         await websocket.send_json({"type": "room_joined", "name": name})
@@ -102,9 +102,25 @@ async def websocket_endpoint(websocket: WebSocket, username: str = Query(...)):
             action = msg_data.get("action")
 
             if action == "message":
+                # Generate a message ID if client didn't send one (optional safety)
+                msg_id = msg_data.get("id")
                 if current_room in manager.rooms:
                     await manager.rooms[current_room].broadcast({
-                        "type": "chat", "content": msg_data["content"]
+                        "type": "chat", 
+                        "content": msg_data["content"],
+                        "id": msg_id  # Pass the ID through
+                    }, sender_name=username)
+
+            # HANDLE STATUS UPDATES (DELIVERED/READ)
+            elif action in ["status_delivered", "status_read"]:
+                # Relay this status to everyone in the room (specifically the original sender needs this)
+                status_type = "delivered" if action == "status_delivered" else "read"
+                if current_room in manager.rooms:
+                    await manager.rooms[current_room].broadcast({
+                        "type": "status_update",
+                        "msg_id": msg_data["id"],
+                        "status": status_type,
+                        "who": username
                     }, sender_name=username)
 
             elif action == "signal":
