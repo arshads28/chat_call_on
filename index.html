@@ -86,21 +86,41 @@
     /* --- VIDEO CALL OVERLAY --- */
     #video-container { 
         display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-        background: #000; z-index: 500; flex-direction: column; align-items: center; justify-content: center;
+        background: #111; z-index: 500; align-items: center; justify-content: center;
     }
     #remoteVideo { width: 100%; height: 100%; object-fit: contain; background: #000; }
-    #localVideo { 
-        position: absolute; bottom: 100px; right: 20px; width: 120px; height: 160px; 
-        border: 2px solid rgba(255,255,255,0.5); border-radius: 12px; 
-        object-fit: cover; background: #333; z-index: 501;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    
+    /* Draggable Local Video */
+    #localVideoWrapper {
+        position: absolute; bottom: 100px; right: 20px; 
+        width: 140px; height: 200px; 
+        border-radius: 15px; overflow: hidden;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.7);
+        border: 2px solid rgba(255,255,255,0.3);
+        cursor: grab; z-index: 501; background: #000;
+        transition: transform 0.1s;
     }
-    .call-controls { 
-        position: absolute; bottom: 30px; left: 0; width: 100%; 
-        display: flex; justify-content: center; gap: 20px; z-index: 502; 
+    #localVideoWrapper:active { cursor: grabbing; transform: scale(0.95); }
+    #localVideo { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+
+    /* Control Bar */
+    .video-controls {
+        position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+        display: flex; gap: 15px; z-index: 502;
+        background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 40px;
+        backdrop-filter: blur(10px);
     }
-    .btn-end { background: #ff3b30; color: white; padding: 15px 30px; border-radius: 30px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: transform 0.2s; }
-    .btn-end:active { transform: scale(0.95); }
+    .ctrl-btn {
+        width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 20px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        background: #333; color: white; transition: 0.3s;
+    }
+    .ctrl-btn:hover { background: #555; }
+    .btn-end-call { background: #ff3b30; }
+    .btn-active { background: #fff; color: #000; }
+    .btn-off { background: #444; color: #ff3b30; text-decoration: line-through; }
+
+
 
     /* --- CHAT AREA --- */
     #chat-header { padding: 15px; background: #f0f0f0; border-bottom: 1px solid #ccc; display: flex; justify-content: space-between; align-items: center; height: 60px; }
@@ -199,6 +219,11 @@
 </head>
 <body onclick="closeContextMenu()">
 
+    <div style="display:none;">
+        <canvas id="processorCanvas"></canvas>
+        <video id="rawVideo" autoplay playsinline muted></video>
+    </div>
+
     <div id="login-screen">
         <h2>Enter Name</h2>
         <input type="text" id="username-input" placeholder="Your Name" />
@@ -255,10 +280,17 @@
 
     <div class="main-chat">
         <div id="video-container">
-            <video id="remoteVideo" autoplay playsinline></video>
-            <video id="localVideo" autoplay playsinline muted></video>
-            <div class="call-controls">
-                <button class="btn-end" onclick="endCall()">Hang Up</button>
+                    <video id="remoteVideo" autoplay playsinline></video>
+
+                    <div id="localVideoWrapper" onmousedown="startDrag(event)">
+                        <video id="localVideo" autoplay playsinline muted></video>
+                    </div>
+                
+                    <div class="video-controls">
+                        <button class="ctrl-btn btn-active" onclick="toggleAudio()" id="btn-audio">🎤</button>
+                        <button class="ctrl-btn btn-active" onclick="toggleVideo()" id="btn-video">📷</button>
+                        <button class="ctrl-btn" onclick="cycleFilters()">✨</button>
+                        <button class="ctrl-btn btn-end-call" onclick="endCall()">📞</button>
             </div>
         </div>
 
@@ -780,18 +812,114 @@
         pendingCallType = null;
     }
 
+    //  NEW FILTER & DRAG FUNCTIONS 
+    let processingInterval;
+        const filters = [
+            'none', 
+            'contrast(1.1) brightness(0.95) saturate(1.2) blur(1px)', // Beauty Mode (Smooth)
+            'grayscale(1)', 
+            'sepia(0.6)'
+        ];
+    let currentFilterIndex = 1; // Default to Beauty Mode
+
+    function cycleFilters() {
+        currentFilterIndex = (currentFilterIndex + 1) % filters.length;
+    }
+
+    function toggleAudio() {
+        if(localStream) {
+            const track = localStream.getAudioTracks()[0];
+            track.enabled = !track.enabled;
+            const btn = document.getElementById('btn-audio');
+            if(track.enabled) { btn.classList.remove('btn-off'); btn.classList.add('btn-active'); } 
+            else { btn.classList.remove('btn-active'); btn.classList.add('btn-off'); }
+        }
+    }
+    
+    function toggleVideo() {
+        if(localStream) {
+            const track = localStream.getVideoTracks()[0];
+            track.enabled = !track.enabled;
+            const btn = document.getElementById('btn-video');
+            if(track.enabled) { btn.classList.remove('btn-off'); btn.classList.add('btn-active'); } 
+            else { btn.classList.remove('btn-active'); btn.classList.add('btn-off'); }
+        }
+    }
+
+    // Draggable Logic
+    let isDragging = false, dragOffsetX, dragOffsetY;
+    function startDrag(e) {
+        isDragging = true;
+        const elem = document.getElementById("localVideoWrapper");
+        dragOffsetX = e.clientX - elem.getBoundingClientRect().left;
+        dragOffsetY = e.clientY - elem.getBoundingClientRect().top;
+        document.addEventListener('mousemove', onDrag);
+        document.addEventListener('mouseup', stopDrag);
+    }
+    function onDrag(e) {
+        if (!isDragging) return;
+        const elem = document.getElementById("localVideoWrapper");
+        elem.style.left = `${e.clientX - dragOffsetX}px`;
+        elem.style.top = `${e.clientY - dragOffsetY}px`;
+        elem.style.bottom = 'auto'; elem.style.right = 'auto';
+    }
+    function stopDrag() { isDragging = false; document.removeEventListener('mousemove', onDrag); document.removeEventListener('mouseup', stopDrag); }
+
+    // Updated Init Media (Applying default filter)
     async function initMedia(videoEnabled) {
         try {
             if (!localStream) {
-                const constraints = {
-                    audio: true,
-                    video: videoEnabled ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" } : false
-                };
-                localStream = await navigator.mediaDevices.getUserMedia(constraints);
-                document.getElementById("localVideo").srcObject = localStream;
+                // 1. Get Camera with flexible constraints (Works better for mobile)
+                const rawStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: true, 
+                    video: videoEnabled ? { facingMode: "user" } : false 
+                });
+
+                // 2. Play Raw Video (Hidden)
+                const rawVideo = document.getElementById('rawVideo');
+                rawVideo.srcObject = rawStream;
+                await rawVideo.play();
+
+                // 3. Setup Canvas
+                const canvas = document.getElementById('processorCanvas');
+                const ctx = canvas.getContext('2d');
+
+                // 4. Processing Loop (Checks Orientation Every Frame)
+                function processFrame() {
+                    if (rawVideo.paused || rawVideo.ended) return;
+
+                    // 🔄 AUTO-RESIZE: If phone rotates, update canvas size immediately
+                    if (canvas.width !== rawVideo.videoWidth || canvas.height !== rawVideo.videoHeight) {
+                        canvas.width = rawVideo.videoWidth;
+                        canvas.height = rawVideo.videoHeight;
+                    }
+                    
+                    // Apply Filter
+                    ctx.filter = filters[currentFilterIndex];
+                    
+                    // Draw
+                    ctx.drawImage(rawVideo, 0, 0, canvas.width, canvas.height);
+                    
+                    requestAnimationFrame(processFrame);
+                }
+                processFrame();
+
+                // 5. Capture Stream (FPS set to 30 for smoothness)
+                const canvasStream = canvas.captureStream(30);
+                
+                // Add Audio Track back
+                const audioTrack = rawStream.getAudioTracks()[0];
+                if (audioTrack) canvasStream.addTrack(audioTrack);
+
+                localStream = canvasStream;
+                
+                // Show Local Video
+                const videoEl = document.getElementById("localVideo");
+                videoEl.srcObject = localStream;
+                videoEl.className = ''; // Remove CSS filters
             }
         } catch (e) {
-            alert("Error accessing camera/mic: " + e.message);
+            alert("Error: " + e.message);
             cleanupCall();
         }
     }
