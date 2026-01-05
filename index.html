@@ -903,7 +903,7 @@
     }
     function stopDrag() { isDragging = false; document.removeEventListener('mousemove', onDrag); document.removeEventListener('mouseup', stopDrag); }
 
-    // Updated Init Media (Applying default filter)
+    // Updated Init Media (With Desktop Fix)
     async function initMedia(videoEnabled) {
         try {
             if (!localStream) {
@@ -917,16 +917,28 @@
                     return; // Stop here! Don't do canvas logic.
                 }
 
-
-                // 1. Get Camera with flexible constraints (Works better for mobile)
-                const rawStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: true, 
-                    video: videoEnabled ? { facingMode: "user" } : false 
-                });
+                // 1. Get Camera (Fixed for Desktop Compatibility)
+                let rawStream;
+                try {
+                    // Attempt A: Request "User" camera (Good for Mobile)
+                    rawStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: true, 
+                        video: { facingMode: "user" } 
+                    });
+                } catch (e) {
+                    // Attempt B: Fallback to ANY camera (Required for Desktop)
+                    console.warn("User camera not found, falling back to default...", e);
+                    rawStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: true, 
+                        video: true 
+                    });
+                }
 
                 // 2. Play Raw Video (Hidden)
                 const rawVideo = document.getElementById('rawVideo');
                 rawVideo.srcObject = rawStream;
+                // Use playsInline to prevent fullscreen on iOS
+                rawVideo.setAttribute("playsinline", true); 
                 await rawVideo.play();
 
                 // 3. Setup Canvas
@@ -944,7 +956,10 @@
                     }
                     
                     // Apply Filter
-                    ctx.filter = filters[currentFilterIndex];
+                    // Ensure 'filters' and 'currentFilterIndex' exist in your global scope
+                    if (typeof filters !== 'undefined' && typeof currentFilterIndex !== 'undefined') {
+                        ctx.filter = filters[currentFilterIndex];
+                    }
                     
                     // Draw
                     ctx.drawImage(rawVideo, 0, 0, canvas.width, canvas.height);
@@ -956,7 +971,7 @@
                 // 5. Capture Stream (FPS set to 30 for smoothness)
                 const canvasStream = canvas.captureStream(30);
                 
-                // Add Audio Track back
+                // Add Audio Track back (Important: canvasStream usually has no audio)
                 const audioTrack = rawStream.getAudioTracks()[0];
                 if (audioTrack) canvasStream.addTrack(audioTrack);
 
@@ -965,10 +980,17 @@
                 // Show Local Video
                 const videoEl = document.getElementById("localVideo");
                 videoEl.srcObject = localStream;
-                videoEl.className = ''; // Remove CSS filters
+                videoEl.className = ''; // Remove CSS filters since we are processing in Canvas
             }
         } catch (e) {
-            alert("Error: " + e.message);
+            console.error(e);
+            let msg = e.message;
+            if (e.name === "NotFoundError" || e.name === "DevicesNotFoundError") {
+                msg = "No camera found. Please check your device.";
+            } else if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
+                msg = "Permission denied. Please allow camera access.";
+            }
+            alert("Error: " + msg);
             cleanupCall();
         }
     }
