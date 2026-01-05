@@ -94,67 +94,125 @@
         transition: background 0.3s ease; /* Smooth light change */
     }
     
+/* --- GOOGLE MEET STYLE GRID --- */
     #video-grid {
         display: flex;
         flex-wrap: wrap;
-        justify-content: center; /* Center horizontally */
-        align-items: center;     /* Center vertically */
-        align-content: center;   /* Center rows if multiple lines */
-        gap: 12px;               /* Consistent gap between tiles */
+        justify-content: center;
+        align-items: center;
+        align-content: center;
+        gap: 16px; /* Professional spacing */
         padding: 20px;
         width: 100%;
-        height: 100%;            /* Fill the screen */
-        overflow-y: auto;        /* Scroll if too many people */
-    }
-
-    /* Dynamic Sizing: Fits 1, 2, 4, or 6 people automatically */
-/* UPDATED: wrappers background must be transparent to let Flash shine through */
-    .remote-video-wrapper {
-        position: relative;
-        background: #000;        /* Black bars for portrait videos */
-        border-radius: 8px;      /* Slight professional rounding */
-        border: 1px solid #333;  /* Subtle border */
-        overflow: hidden;
-        
-        /* ZOOM SIZING LOGIC: */
-        flex: 1 1 45%;           /* Grow to fill, base is 45% (2 per row) */
-        aspect-ratio: 16/9;      /* Enforce standard meeting shape */
-        
-        /* Constraints to prevent it getting too huge or too tiny */
-        max-width: 1200px;
-        min-width: 280px;        
-        max-height: 80vh;        /* Never taller than 80% of screen */
-
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5); /* Deep shadow */
+        height: 100%;
+        overflow-y: auto;
         transition: all 0.3s ease;
     }
-    /* Single participant view (optional optimization) */
-    .remote-video-wrapper:only-child {
+
+    /* --- VIDEO TILES --- */
+    .remote-video-wrapper {
+        position: relative;
+        background: #202124; /* Google Meet Dark Grey */
+        border-radius: 12px;  /* Smooth Corners */
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        
+        /* Default Flex Behavior */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth resize animation */
+        
+        /* Default Sizing (Fallback) */
+        width: 45%;
+        aspect-ratio: 16/9;
+        max-height: 48vh;
+    }
+
+    .remote-video-wrapper video {
+        width: 100%;
+        height: 100%;
+        object-fit: contain; /* Prevents cropping heads on mobile */
+        background: #000;
+        transform: translateZ(0); /* Hardware Acceleration */
+    }
+
+    /* --- NAME TAG (Professional Glass) --- */
+    .remote-label {
+        position: absolute;
+        bottom: 12px;
+        left: 12px;
+        color: white;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.3px;
+        backdrop-filter: blur(4px);
+        text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        pointer-events: none;
+        z-index: 10;
+    }
+
+    /* --- SMART LAYOUT LOGIC (Controlled by JS Attribute) --- */
+    
+    /* 1 Participant: Full Focus */
+    #video-grid[data-count="1"] .remote-video-wrapper {
+        width: 100%;
+        max-width: 1200px;
+        height: auto;
+        aspect-ratio: 16/9;
+        max-height: 85vh;
+    }
+
+    /* 2 Participants: Split Screen */
+    #video-grid[data-count="2"] .remote-video-wrapper {
+        width: 48%;
+        max-width: 900px;
+        aspect-ratio: 16/9;
+    }
+
+    /* 3-4 Participants: 2x2 Grid */
+    #video-grid[data-count="3"] .remote-video-wrapper,
+    #video-grid[data-count="4"] .remote-video-wrapper {
+        width: 45%;
+        max-width: 600px;
+        aspect-ratio: 16/9;
+    }
+
+    /* 5-6 Participants: 3 Columns */
+    #video-grid[data-count="5"] .remote-video-wrapper,
+    #video-grid[data-count="6"] .remote-video-wrapper {
+        width: 31%; /* Fits 3 in a row */
+        aspect-ratio: 4/3; /* Slightly taller for density */
+    }
+
+    /* Mobile Optimization for Grid */
+    @media (max-width: 768px) {
+        #video-grid { padding: 10px; gap: 8px; }
+        
+        /* On phone, stacking 2 people vertically is better */
+        #video-grid[data-count="2"] .remote-video-wrapper {
+            width: 100%;
+            height: 40vh;
+        }
+        
+        #video-grid[data-count="3"] .remote-video-wrapper,
+        #video-grid[data-count="4"] .remote-video-wrapper {
+            width: 48%; /* 2x2 on mobile too */
+            height: 25vh;
+        }
+    }
+
+        .remote-video-wrapper:only-child {
         flex: 1 1 100%;
         max-width: 100%;
         height: auto;
-    }
-    
-    .remote-video-wrapper video { 
-        width: 100%; 
-        height: 100%; 
-        object-fit: contain; /* Shows full video (no cropping) inside the box */
-    }
-
-    .remote-label {
-        position: absolute; 
-        bottom: 12px; 
-        left: 12px;
-        background: rgba(0, 0, 0, 0.6); 
-        color: white;
-        padding: 4px 10px; 
-        border-radius: 4px; 
-        font-size: 13px;
-        font-weight: 500;
-        letter-spacing: 0.5px;
-        backdrop-filter: blur(4px); /* Glassmorphism effect */
-        pointer-events: none;       /* Clicks pass through */
-        text-shadow: 0 1px 2px rgba(0,0,0,0.8);
     }
 
     /* Floating Local Video (Keep as is) */
@@ -512,8 +570,8 @@
                 <label>Video Quality</label>
                 <select id="set-quality">
                     <option value="fhd">Full HD+ (1080p) - High CPU</option>
-                    <option value="hd" selected>HD (720p) - Medium</option>
-                    <option value="vga">VGA (480p) - Fast</option>
+                    <option value="hd">HD (720p) - Medium</option>
+                    <option value="vga" selected>VGA (480p) - Fast</option>
                 </select>
             </div>
 
@@ -521,8 +579,8 @@
                 <label>Frame Rate (FPS)</label>
                 <select id="set-fps">
                     <option value="30">30 FPS - Smooth</option>
-                    <option value="24" selected>24 FPS - Cinematic</option>
-                    <option value="20">20 FPS - Low Latency</option>
+                    <option value="24">24 FPS - Cinematic</option>
+                    <option value="20" selected>20 FPS - Low Latency</option>
                 </select>
             </div>
 
@@ -530,8 +588,8 @@
                 <label>Audio Quality</label>
                 <select id="set-audio">
                     <option value="high">High (Studio/Music)</option>
-                    <option value="med" selected>Medium (Speech)</option>
-                    <option value="low">Low (Data Saver)</option>
+                    <option value="med">Medium (Speech)</option>
+                    <option value="low" selected>Low (Data Saver)</option>
                 </select>
             </div>
 
@@ -558,7 +616,8 @@
     // WEBRTC VARIABLES
     let activeCall = false;
     let callType = null; 
-    let localStream;
+    let localStream;      // The stream sent to others (Canvas + Audio)
+    let rawStream;        // NEW: The actual hardware camera stream (Global)
     const peerConnections = {};
     const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
     let callTimeoutTimer = null;
@@ -1121,44 +1180,170 @@
         currentFilterIndex = (currentFilterIndex + 1) % filters.length;
     }
 
-    function toggleAudio() {
-        if(localStream) {
-            const track = localStream.getAudioTracks()[0];
-            track.enabled = !track.enabled;
-            const btn = document.getElementById('btn-audio');
-            if(track.enabled) { btn.classList.remove('btn-off'); btn.classList.add('btn-active'); } 
-            else { btn.classList.remove('btn-active'); btn.classList.add('btn-off'); }
-        }
-    }
+    // --- ADVANCED TOGGLE (HARDWARE CONTROL) ---
     
-    function toggleVideo() {
-        if(localStream) {
-            const track = localStream.getVideoTracks()[0];
-            track.enabled = !track.enabled;
-            const btn = document.getElementById('btn-video');
-            if(track.enabled) { btn.classList.remove('btn-off'); btn.classList.add('btn-active'); } 
-            else { btn.classList.remove('btn-active'); btn.classList.add('btn-off'); }
+    async function toggleVideo() {
+        const btn = document.getElementById('btn-video');
+        const isOff = btn.classList.contains('btn-off');
+
+        if (isOff) {
+            // --- TURN ON ---
+            try {
+                // 1. Get new Camera Stream
+                const newStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } 
+                });
+                const newVideoTrack = newStream.getVideoTracks()[0];
+
+                // 2. Re-attach to Raw Video (Feed the Canvas)
+                if (rawStream) {
+                    // Add track to existing raw stream if it exists
+                    rawStream.addTrack(newVideoTrack);
+                } else {
+                    rawStream = newStream;
+                }
+                
+                const rawVideo = document.getElementById('rawVideo');
+                rawVideo.srcObject = rawStream;
+                await rawVideo.play();
+
+                // 3. Update Button
+                btn.classList.remove('btn-off'); 
+                btn.classList.add('btn-active');
+            } catch (e) {
+                console.error("Failed to restart video", e);
+                showToast("Error starting camera");
+            }
+        } else {
+            // --- TURN OFF (Stop Hardware) ---
+            if (rawStream) {
+                const tracks = rawStream.getVideoTracks();
+                tracks.forEach(track => {
+                    track.stop();         // Kills the light
+                    rawStream.removeTrack(track);
+                });
+            }
+            // Update Button
+            btn.classList.remove('btn-active'); 
+            btn.classList.add('btn-off');
         }
     }
 
-    // Draggable Logic
-    let isDragging = false, dragOffsetX, dragOffsetY;
-    function startDrag(e) {
-        isDragging = true;
-        const elem = document.getElementById("localVideoWrapper");
-        dragOffsetX = e.clientX - elem.getBoundingClientRect().left;
-        dragOffsetY = e.clientY - elem.getBoundingClientRect().top;
-        document.addEventListener('mousemove', onDrag);
-        document.addEventListener('mouseup', stopDrag);
+    async function toggleAudio() {
+        const btn = document.getElementById('btn-audio');
+        const isOff = btn.classList.contains('btn-off');
+
+        if (isOff) {
+            // --- TURN ON ---
+            try {
+                // 1. Get new Audio Stream
+                const newStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { echoCancellation: true, noiseSuppression: true } 
+                });
+                const newAudioTrack = newStream.getAudioTracks()[0];
+
+                // 2. Update Local Stream
+                if (localStream) {
+                    localStream.addTrack(newAudioTrack);
+                }
+
+                // 3. Replace Track in ALL Peer Connections (Seamless)
+                for (const pc of Object.values(peerConnections)) {
+                    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+                    if (sender) {
+                        sender.replaceTrack(newAudioTrack);
+                    } else {
+                        // If no audio sender existed (e.g. call started video-only), add one
+                        pc.addTrack(newAudioTrack, localStream);
+                    }
+                }
+
+                // 4. Update Button
+                btn.classList.remove('btn-off'); 
+                btn.classList.add('btn-active');
+            } catch (e) {
+                console.error("Failed to restart audio", e);
+                showToast("Error starting mic");
+            }
+        } else {
+            // --- TURN OFF (Stop Hardware) ---
+            if (localStream) {
+                const tracks = localStream.getAudioTracks();
+                tracks.forEach(track => {
+                    track.stop(); // Kills the mic permission
+                    localStream.removeTrack(track);
+                });
+            }
+            
+            // Update Button
+            btn.classList.remove('btn-active'); 
+            btn.classList.add('btn-off');
+        }
     }
+
+    // --- UNIFIED DRAG LOGIC (Mouse & Touch) ---
+    let isDragging = false;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    const dragItem = document.getElementById("localVideoWrapper");
+
+    // Mouse Events
+    dragItem.addEventListener('mousedown', startDrag);
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDrag);
+
+    // Touch Events (Mobile)
+    dragItem.addEventListener('touchstart', startDrag, { passive: false });
+    document.addEventListener('touchmove', onDrag, { passive: false });
+    document.addEventListener('touchend', stopDrag);
+
+    function startDrag(e) {
+        // Get correct client coordinates (Mouse or Touch)
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        isDragging = true;
+        const rect = dragItem.getBoundingClientRect();
+        dragOffsetX = clientX - rect.left;
+        dragOffsetY = clientY - rect.top;
+        
+        // Prevent scrolling while dragging on mobile
+        if(e.cancelable) e.preventDefault();
+    }
+
     function onDrag(e) {
         if (!isDragging) return;
-        const elem = document.getElementById("localVideoWrapper");
-        elem.style.left = `${e.clientX - dragOffsetX}px`;
-        elem.style.top = `${e.clientY - dragOffsetY}px`;
-        elem.style.bottom = 'auto'; elem.style.right = 'auto';
+        
+        // Prevent scrolling
+        if(e.cancelable) e.preventDefault();
+
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        // Calculate new position
+        let newLeft = clientX - dragOffsetX;
+        let newTop = clientY - dragOffsetY;
+
+        // Optional: Keep inside screen bounds
+        const maxX = window.innerWidth - dragItem.offsetWidth;
+        const maxY = window.innerHeight - dragItem.offsetHeight;
+
+        // Clamp values
+        newLeft = Math.max(0, Math.min(newLeft, maxX));
+        newTop = Math.max(0, Math.min(newTop, maxY));
+
+        dragItem.style.left = `${newLeft}px`;
+        dragItem.style.top = `${newTop}px`;
+        
+        // Reset bottom/right to allow free movement
+        dragItem.style.bottom = 'auto'; 
+        dragItem.style.right = 'auto';
     }
-    function stopDrag() { isDragging = false; document.removeEventListener('mousemove', onDrag); document.removeEventListener('mouseup', stopDrag); }
+
+    function stopDrag() {
+        isDragging = false;
+    }
 
     // --- SETTINGS LOGIC ---
     function openSettings() {
@@ -1262,8 +1447,7 @@
                     }
                 };
 
-                // 4. GET STREAM
-                let rawStream;
+
                 try {
                     rawStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
                 } catch (e) {
