@@ -84,11 +84,66 @@
 
 
     /* --- VIDEO CALL OVERLAY --- */
+/* UPDATED: Container supports smooth color transition for Flash Mode */
     #video-container { 
-        display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-        background: #111; z-index: 500; align-items: center; justify-content: center;
+        display: none; 
+        position: absolute; inset: 0; 
+        background: #111; /* Default Dark */
+        z-index: 500; 
+        flex-direction: column;
+        transition: background 0.3s ease; /* Smooth light change */
     }
-    #remoteVideo { width: 100%; height: 100%; object-fit: contain; background: #000; }
+    
+    #video-grid {
+        flex: 1;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-content: center;
+        gap: 10px;
+        padding: 20px;
+        overflow-y: auto;
+    }
+
+    /* Dynamic Sizing: Fits 1, 2, 4, or 6 people automatically */
+/* UPDATED: wrappers background must be transparent to let Flash shine through */
+    .remote-video-wrapper {
+        position: relative;
+        background: transparent; /* Changed from #000 */
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.1);
+        flex: 1 1 300px;
+        max-width: 100%;
+        height: 300px; 
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .remote-video-wrapper video { 
+        width: 100%; 
+        height: 100%; 
+        
+        /* 'contain' shows the whole vertical phone screen.
+           'cover' would crop the head and chin. */
+        object-fit: contain; 
+    }
+
+    .remote-label {
+        position: absolute; bottom: 10px; left: 10px;
+        background: rgba(0,0,0,0.6); color: white;
+        padding: 4px 10px; border-radius: 4px; font-size: 12px;
+        font-weight: bold;
+    }
+
+    /* Floating Local Video (Keep as is) */
+    #localVideoWrapper {
+        position: absolute; bottom: 100px; right: 20px; 
+        width: 140px; height: 200px; z-index: 501;
+        /* ... keep your existing shadow/border styles ... */
+    }
     
     /* Draggable Local Video */
     #localVideoWrapper {
@@ -283,17 +338,21 @@
 
     <div class="main-chat">
         <div id="video-container">
-                    <video id="remoteVideo" autoplay playsinline></video>
+            <div id="video-grid"></div>
+        
+            <div id="localVideoWrapper" onmousedown="startDrag(event)">
+                <video id="localVideo" autoplay playsinline muted></video>
+                <div style="position:absolute; bottom:5px; right:5px; color:white; font-size:10px; background:rgba(0,0,0,0.5); padding:2px 5px; border-radius:3px;">You</div>
+            </div>
+        
+            <div class="video-controls">
+                <button class="ctrl-btn btn-active" onclick="toggleAudio()" id="btn-audio">🎤</button>
+                <button class="ctrl-btn btn-active" onclick="toggleVideo()" id="btn-video">📷</button>
 
-                    <div id="localVideoWrapper" onmousedown="startDrag(event)">
-                        <video id="localVideo" autoplay playsinline muted></video>
-                    </div>
-                
-                    <div class="video-controls">
-                        <button class="ctrl-btn btn-active" onclick="toggleAudio()" id="btn-audio">🎤</button>
-                        <button class="ctrl-btn btn-active" onclick="toggleVideo()" id="btn-video">📷</button>
-                        <button class="ctrl-btn" onclick="cycleFilters()">✨</button>
-                        <button class="ctrl-btn btn-end-call" onclick="endCall()">📞</button>
+                <button class="ctrl-btn" onclick="cycleFlash()" id="btn-flash">🔦</button>
+
+                <button class="ctrl-btn" onclick="cycleFilters()">✨</button>
+                <button class="ctrl-btn btn-end-call" onclick="endCall()">📞</button>
             </div>
         </div>
 
@@ -702,7 +761,7 @@
     // --- WEBRTC ---
     function sendSignal(data, target = null) {
         const payload = { action: "signal", data: data };
-        if (target) payload.target = target;
+        if (target) payload.data.target = target;
         ws.send(JSON.stringify(payload));
     }
 
@@ -712,22 +771,33 @@
             return;
         }
         callType = type; 
-        document.getElementById("outgoing-call").style.display = "flex";
-        playRing('outgoing');
-        if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-        callTimeoutTimer = setTimeout(() => {
-            cancelCall(); 
-            showToast("No answer, call ended.");
-        }, CALL_TIMEOUT_MS);
-        sendSignal({ type: "call_invite", callType: type });
+        activeCall = true;
+        document.getElementById("video-container").style.display = "flex";
+        // Initialize Camera/Mic
+        await initMedia(callType === "video");
+        // document.getElementById("outgoing-call").style.display = "flex";
+        // playRing('outgoing');
+        // if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+        // callTimeoutTimer = setTimeout(() => {
+        //     cancelCall(); 
+        //     showToast("No answer, call ended.");
+        // }, CALL_TIMEOUT_MS);
+        // sendSignal({ type: "call_invite", callType: type });
+        sendSignal({ type: "join_call", callType: type });
+        
+        showToast("Joined call. Waiting for others...");
     }
 
+    // Cancel/End functions
     function cancelCall() {
-        if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
         stopRing();
         document.getElementById("outgoing-call").style.display = "none";
+        endCall();
+    }
+
+    function endCall() {
         sendSignal({ type: "peer_left" }); 
-        activeCall = false;
+        cleanupCall();
     }
 
     function showToast(text) {
@@ -762,92 +832,136 @@
             return;
         }
     
-        if (data.type === "call_invite") {
-            if (activeCall) return;
-            if (sender === username) return;
-            pendingCaller = sender;
-            pendingCallType = data.callType;
-            document.getElementById("caller-name").innerText = sender;
-            document.getElementById("call-type").innerText = data.callType === "video" ? "Incoming Video Call" : "Incoming Voice Call";
-            document.getElementById("incoming-call").style.display = "flex";
-            playRing('incoming');
-            if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-            callTimeoutTimer = setTimeout(() => { declineCall(); }, CALL_TIMEOUT_MS);
-            return; 
-        }
 
-        if (data.type === "call_accept") {
-            if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-            stopRing();
-            document.getElementById("outgoing-call").style.display = "none";
+        // Security: If message is targeted to someone else, ignore it.
+        if (data.target && data.target !== username) return;
+
+        // Someone Joined / Started Call
+        if (data.type === "join_call") {
+            if (sender === username) return;
+
+            // SCENARIO 1: I am NOT in the call yet. Show Invite.
             if (!activeCall) {
-                activeCall = true;
-                document.getElementById("video-container").style.display = "flex";
-                await initMedia(callType === "video");
+                pendingCaller = sender;
+                pendingCallType = data.callType;
+                document.getElementById("caller-name").innerText = "Group Call";
+                document.getElementById("call-type").innerText = `${sender} is calling...`;
+                document.getElementById("incoming-call").style.display = "flex";
+                playRing('incoming');
+                return;
             }
+            // SCENARIO 2: I AM in the call. Connect to them immediately (Mesh).
+            showToast(`${sender} joined.`);
             const pc = createPeerConnection(sender);
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
+            // Send offer ONLY to the new person
             sendSignal({ type: "offer", sdp: offer }, sender);
             return;
         }
-    
-        if (data.type === "call_decline") {
-            if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+
+        // if (data.type === "call_accept") {
+        //     if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+        //     stopRing();
+        //     document.getElementById("outgoing-call").style.display = "none";
+        //     if (!activeCall) {
+        //         activeCall = true;
+        //         document.getElementById("video-container").style.display = "flex";
+        //         await initMedia(callType === "video");
+        //     }
+        //     const pc = createPeerConnection(sender);
+        //     const offer = await pc.createOffer();
+        //     await pc.setLocalDescription(offer);
+        //     sendSignal({ type: "offer", sdp: offer }, sender);
+        //     return;
+        // }
+
+        if (data.type === "call_accept") {
+            // In a mesh network, we don't strictly need this, 
+            // but we can use it to stop ringing if we were the initiator.
             stopRing();
-            document.getElementById("outgoing-call").style.display = "none";
-            showToast(`${sender} declined the call`);
             return;
         }
     
+        // if (data.type === "call_decline") {
+        //     if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+        //     stopRing();
+        //     document.getElementById("outgoing-call").style.display = "none";
+        //     showToast(`${sender} declined the call`);
+        //     return;
+        // }
+
+        if (data.type === "call_decline") {
+            showToast(`${sender} declined.`);
+            return;
+        }
+    
+        // WebRTC Handshake (Offer/Answer/Candidate)
         if (data.type === "offer") {
+            if (!activeCall) return; // Ignore offers if I'm not in call mode
+            
             const pc = createPeerConnection(sender);
             await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
+            
+            // Send answer back ONLY to sender
             sendSignal({ type: "answer", sdp: answer }, sender);
             return;
         }
         if (data.type === "answer") {
-            if (peerConnections[sender]) await peerConnections[sender].setRemoteDescription(new RTCSessionDescription(data.sdp));
+            if (peerConnections[sender]) {
+                await peerConnections[sender].setRemoteDescription(new RTCSessionDescription(data.sdp));
+            }
             return;
         }
+
         if (data.type === "candidate") {
-            if (peerConnections[sender]) await peerConnections[sender].addIceCandidate(new RTCIceCandidate(data.candidate));
+            if (peerConnections[sender]) {
+                await peerConnections[sender].addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+            return;
         }
         if (data.type === "peer_left") {
-            document.getElementById("incoming-call").style.display = "none"; 
-            stopRing();
-            if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+            // Close connection
             if (peerConnections[sender]) {
                 peerConnections[sender].close();
                 delete peerConnections[sender];
             }
-            if (Object.keys(peerConnections).length === 0) cleanupCall();
+            // Remove video from Grid
+            removeRemoteVideo(sender);
+            showToast(`${sender} left.`);
+
+            // AUTOMATIC CANCEL: If no one else is left, end my call
+            if (Object.keys(peerConnections).length === 0) {
+                showToast("Everyone left. Ending call...");
+                setTimeout(cleanupCall, 2000); // Give user 2 seconds to see the message
+            }
             return;
         }
     }
 
     async function acceptCall() {
-        if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
         stopRing();
         document.getElementById("incoming-call").style.display = "none";
+        
         activeCall = true;
-        callType = pendingCallType;
+        callType = pendingCallType || 'video';
+        
         document.getElementById("video-container").style.display = "flex";
         await initMedia(callType === "video");
-        sendSignal({ type: "call_accept" }, pendingCaller);
-        pendingCaller = null;
-        pendingCallType = null;
+
+        // Broadcast to everyone: "I have joined!"
+        sendSignal({ type: "join_call", callType: callType });
     }
 
     function declineCall() {
-        if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
         stopRing();
         document.getElementById("incoming-call").style.display = "none";
-        sendSignal({ type: "call_decline" }, pendingCaller);
+        // Notify pending caller we declined (optional in group, but good for 1v1 feel)
+        if(pendingCaller) sendSignal({ type: "call_decline" }, pendingCaller);
         pendingCaller = null;
-        pendingCallType = null;
     }
 
     //  NEW FILTER & DRAG FUNCTIONS 
@@ -997,31 +1111,92 @@
 
     function createPeerConnection(peerName) {
         if (peerConnections[peerName]) return peerConnections[peerName];
+
         const pc = new RTCPeerConnection(rtcConfig);
         peerConnections[peerName] = pc;
-        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+        // Add my local stream to the connection
+        if (localStream) {
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        }
+
+        // When their stream arrives, create the video element
         pc.ontrack = event => {
-            const remoteVid = document.getElementById("remoteVideo");
-            if (remoteVid.srcObject !== event.streams[0]) remoteVid.srcObject = event.streams[0];
+            // Use stream[0]
+            if (event.streams && event.streams[0]) {
+                addRemoteVideo(peerName, event.streams[0]);
+            }
         };
+
         pc.onicecandidate = event => {
-            if (event.candidate) sendSignal({ type: 'candidate', candidate: event.candidate }, peerName);
+            if (event.candidate) {
+                sendSignal({ type: 'candidate', candidate: event.candidate }, peerName);
+            }
         };
-        pc.onconnectionstatechange = () => {
-            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') delete peerConnections[peerName];
-        };
+
         return pc;
+    }
+
+
+    // 7. GRID HELPERS
+    function addRemoteVideo(peerName, stream) {
+        const grid = document.getElementById("video-grid");
+        
+        // Prevent duplicates
+        if (document.getElementById(`wrapper-${peerName}`)) return;
+
+        // Create Container
+        const wrapper = document.createElement("div");
+        wrapper.className = "remote-video-wrapper"; // Uses your existing CSS
+        wrapper.id = `wrapper-${peerName}`;
+
+        // Create Video
+        const video = document.createElement("video");
+        video.autoplay = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+
+        // Create Name Label
+        const label = document.createElement("div");
+        label.className = "remote-label";
+        label.innerText = peerName;
+
+        wrapper.appendChild(video);
+        wrapper.appendChild(label);
+        grid.appendChild(wrapper);
+    }
+
+    function removeRemoteVideo(peerName) {
+        const wrapper = document.getElementById(`wrapper-${peerName}`);
+        if (wrapper) wrapper.remove();
     }
 
     function cleanupCall() {
         document.getElementById("video-container").style.display = "none";
+        document.getElementById("video-grid").innerHTML = ""; // Clear Grid
         stopRing();
-        for (const pc of Object.values(peerConnections)) pc.close();
+        
+        // 1. Close all Peer Connections (Network)
+        for (const key in peerConnections) {
+            peerConnections[key].close();
+        }
         for (const key in peerConnections) delete peerConnections[key];
+
+        // 2. STOP HARDWARE CAMERA (Crucial for turning off the light)
+        // We grab the stream directly from the hidden video element
+        const rawVideo = document.getElementById('rawVideo');
+        if (rawVideo.srcObject) {
+            const tracks = rawVideo.srcObject.getTracks();
+            tracks.forEach(track => track.stop()); // This kills the hardware access
+            rawVideo.srcObject = null;
+        }
+
+        // 3. STOP PROCESSED STREAM (Canvas + Audio)
         if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
             localStream = null;
         }
+
         activeCall = false;
     }
 
@@ -1033,6 +1208,48 @@
     function toggleMenu() {
         document.getElementById("sidebar").classList.toggle("active");
         document.getElementById("overlay").classList.toggle("active");
+    }
+
+    // --- FLASH / FACE LIGHT LOGIC ---
+    const flashModes = [
+        { color: '#111', icon: '🔦', name: 'Off' },       // Default Dark
+        { color: '#ffffff', icon: '💡', name: 'Bright' }, // Max Brightness
+        { color: '#ffe4b5', icon: '🌅', name: 'Warm' },   // Warm (Moccasin)
+        { color: '#e0ffff', icon: '❄️', name: 'Cool' },   // Cool (LightCyan)
+        { color: '#ffcfb3', icon: '🧖', name: 'Skin' },    // Skin/Peach Glow (Flattering)
+        // --- PROFESSIONAL GELS ---
+        { color: '#ffb74d', icon: '🟠', name: 'CTO' },      // Orange (Tungsten Match)
+        { color: '#90ee90', icon: '🟢', name: 'CTG' },      // Green (Fluorescent Match)
+        { color: '#4fc3f7', icon: '🔵', name: 'CTB' }       // Blue (Daylight/Moon Match)
+    ];
+    
+    let currentFlashIndex = 0;
+
+    function cycleFlash() {
+        // 1. Increment index
+        currentFlashIndex = (currentFlashIndex + 1) % flashModes.length;
+        const mode = flashModes[currentFlashIndex];
+
+        // 2. Apply to Container Background
+        document.getElementById("video-container").style.background = mode.color;
+
+        // 3. Update Button Icon & Style
+        const btn = document.getElementById("btn-flash");
+        btn.innerText = mode.icon;
+        
+        if (currentFlashIndex === 0) {
+            btn.classList.remove("btn-active"); 
+            btn.style.background = ""; 
+            btn.style.color = "";
+        } else {
+            btn.classList.add("btn-active");
+            // Set button color to match the flash for visual feedback
+            btn.style.background = mode.color;
+            btn.style.color = '#000'; // Keep text dark for contrast
+        }
+
+        // 4. Show Toast
+        showToast(`Flash: ${mode.name}`);
     }
 </script>
 </body>
