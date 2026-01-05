@@ -289,6 +289,75 @@
     #invite-toast button { padding: 5px 15px; border-radius: 5px; border: none; cursor: pointer; }
     #invite-toast .btn-yes { background: #4cd964; color: white; }
     #invite-toast .btn-no { background: #ff3b30; color: white; }
+
+    /* --- SETTINGS MODAL --- */
+    .settings-modal {
+        display: none; position: fixed; inset: 0; 
+        background: rgba(0,0,0,0.8); z-index: 6000;
+        justify-content: center; align-items: center;
+        backdrop-filter: blur(5px);
+    }
+    .settings-content {
+        background: #1f2936; color: white;
+        padding: 25px; border-radius: 12px; width: 90%; max-width: 400px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        border: 1px solid #333;
+    }
+    .settings-content h3 { margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px; }
+    
+    .setting-group { margin-bottom: 15px; }
+    .setting-group label { display: block; font-size: 12px; color: #aaa; margin-bottom: 5px; text-transform: uppercase; }
+    .setting-group select {
+        width: 100%; padding: 10px; background: #0e1621; color: white;
+        border: 1px solid #333; border-radius: 6px; outline: none; font-size: 14px;
+    }
+    
+    .btn-save {
+        width: 100%; padding: 12px; background: #0088cc; color: white;
+        border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px;
+    }
+    .btn-save:hover { background: #0077b5; }
+
+    /* --- MORE MENU POPUP --- */
+    #more-menu {
+        display: none;
+        position: absolute;
+        bottom: 80px; /* Appears above the control bar */
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(20, 20, 20, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid #333;
+        border-radius: 12px;
+        padding: 8px;
+        width: 200px;
+        flex-direction: column;
+        gap: 5px;
+        z-index: 505;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    
+    #more-menu button {
+        background: transparent;
+        border: none;
+        color: white;
+        padding: 12px 15px;
+        text-align: left;
+        font-size: 14px;
+        cursor: pointer;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        transition: background 0.2s;
+        width: 100%;
+    }
+    
+    #more-menu button:hover { background: rgba(255,255,255,0.1); }
+    #more-menu button:active { transform: scale(0.98); }
+    
+    /* Icon styling in the menu */
+    .menu-icon { font-size: 18px; width: 25px; text-align: center; }
 </style>
 </head>
 <body onclick="closeContextMenu()">
@@ -367,10 +436,30 @@
             <div class="video-controls">
                 <button class="ctrl-btn btn-active" onclick="toggleAudio()" id="btn-audio">🎤</button>
                 <button class="ctrl-btn btn-active" onclick="toggleVideo()" id="btn-video">📷</button>
-                <button class="ctrl-btn" onclick="cycleFlash()" id="btn-flash">🔦</button>
-                <button class="ctrl-btn" onclick="togglePiP()" id="btn-pip">🖼️</button>
-                <button class="ctrl-btn" onclick="cycleFilters()">✨</button>
+                <button class="ctrl-btn" onclick="toggleMoreMenu()" id="btn-more">☰</button>
                 <button class="ctrl-btn btn-end-call" onclick="endCall()">📞</button>
+            </div>
+        
+            <div id="more-menu">
+                <button onclick="cycleFlash()">
+                    <span class="menu-icon" id="menu-icon-flash">🔦</span> 
+                    <span id="menu-text-flash">Flash / Glow</span>
+                </button>
+
+                <button onclick="cycleFilters()">
+                    <span class="menu-icon">✨</span> 
+                    Filters / Effects
+                </button>
+
+                <button onclick="togglePiP(); toggleMoreMenu()">
+                    <span class="menu-icon">🖼️</span> 
+                    Picture-in-Picture
+                </button>
+
+                <button onclick="openSettings(); toggleMoreMenu()">
+                    <span class="menu-icon">⚙️</span> 
+                    Settings
+                </button>
             </div>
         </div>
 
@@ -412,6 +501,42 @@
         <div class="action-buttons">
             <button class="btn-call-action btn-decline" onclick="declineCall()">✖</button>
             <button class="btn-call-action btn-accept" onclick="acceptCall()">✔</button>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="settings-modal">
+        <div class="settings-content">
+            <h3>Call Settings</h3>
+            
+            <div class="setting-group">
+                <label>Video Quality</label>
+                <select id="set-quality">
+                    <option value="fhd">Full HD+ (1080p) - High CPU</option>
+                    <option value="hd" selected>HD (720p) - Medium</option>
+                    <option value="vga">VGA (480p) - Fast</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>Frame Rate (FPS)</label>
+                <select id="set-fps">
+                    <option value="30">30 FPS - Smooth</option>
+                    <option value="24" selected>24 FPS - Cinematic</option>
+                    <option value="20">20 FPS - Low Latency</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>Audio Quality</label>
+                <select id="set-audio">
+                    <option value="high">High (Studio/Music)</option>
+                    <option value="med" selected>Medium (Speech)</option>
+                    <option value="low">Low (Data Saver)</option>
+                </select>
+            </div>
+
+            <button class="btn-save" onclick="applySettings()">Apply & Restart Media</button>
+            <button class="btn-save" style="background:#333; margin-top:10px;" onclick="closeSettings()">Cancel</button>
         </div>
     </div>
 
@@ -1035,94 +1160,167 @@
     }
     function stopDrag() { isDragging = false; document.removeEventListener('mousemove', onDrag); document.removeEventListener('mouseup', stopDrag); }
 
-    // Updated Init Media (With Desktop Fix)
+    // --- SETTINGS LOGIC ---
+    function openSettings() {
+        document.getElementById("settings-modal").style.display = "flex";
+    }
+    function closeSettings() {
+        document.getElementById("settings-modal").style.display = "none";
+    }
+    
+    async function applySettings() {
+        closeSettings();
+        if (activeCall) {
+            // Stop current stream
+            if (localStream) {
+                localStream.getTracks().forEach(t => t.stop());
+                localStream = null;
+            }
+            // Restart with new settings
+            await initMedia(true); 
+            
+            // Re-negotiate with peers (Optional but recommended)
+            // For now, replacing tracks in existing connections:
+            const videoTrack = localStream.getVideoTracks()[0];
+            const audioTrack = localStream.getAudioTracks()[0];
+            
+            for (const pc of Object.values(peerConnections)) {
+                const senders = pc.getSenders();
+                const vSender = senders.find(s => s.track && s.track.kind === 'video');
+                const aSender = senders.find(s => s.track && s.track.kind === 'audio');
+                if(vSender && videoTrack) vSender.replaceTrack(videoTrack);
+                if(aSender && audioTrack) aSender.replaceTrack(audioTrack);
+            }
+        }
+    }
+
+    // --- CONFIGURABLE MEDIA INIT ---
     async function initMedia(videoEnabled) {
         try {
             if (!localStream) {
+                
+                // 1. GET USER PREFERENCES
+                const qualityVal = document.getElementById("set-quality").value;
+                const fpsVal = parseInt(document.getElementById("set-fps").value);
+                const audioVal = document.getElementById("set-audio").value;
 
-                // IF AUDIO ONLY (Skip Beauty Filter) ---
-                if (!videoEnabled) {
-                    localStream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: true, 
-                        video: false 
-                    });
-                    return; // Stop here! Don't do canvas logic.
+                // 2. DEFINE CONSTRAINTS BASED ON SELECTION
+                
+                // Video Resolution Map
+                const resMap = {
+                    'fhd': { width: 1920, height: 1080 },
+                    'hd':  { width: 1280, height: 720 },
+                    'vga': { width: 640, height: 480 }
+                };
+                const targetRes = resMap[qualityVal];
+
+                // Audio Constraints Map
+                // Low = aggressive compression/noise suppression
+                // High = nearly raw audio
+                let audioConstraints = {};
+                if (audioVal === 'high') {
+                    audioConstraints = { 
+                        echoCancellation: false, 
+                        noiseSuppression: false, 
+                        autoGainControl: false,
+                        sampleRate: 48000,
+                        sampleSize: 16 
+                    };
+                } else if (audioVal === 'med') {
+                    audioConstraints = { 
+                        echoCancellation: true, 
+                        noiseSuppression: true, 
+                        autoGainControl: true,
+                        sampleRate: 44100 
+                    };
+                } else { // Low
+                    audioConstraints = { 
+                        echoCancellation: true, 
+                        noiseSuppression: true, 
+                        autoGainControl: true, 
+                        sampleRate: 16000, // Reduced sample rate
+                        channelCount: 1    // Mono
+                    };
                 }
 
-                // 1. Get Camera (Fixed for Desktop Compatibility)
+                if (!videoEnabled) {
+                    localStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: audioConstraints, 
+                        video: false 
+                    });
+                    return; 
+                }
+
+                // 3. APPLY CONSTRAINTS
+                const mediaConstraints = {
+                    audio: audioConstraints,
+                    video: {
+                        facingMode: "user",
+                        width: { ideal: targetRes.width }, 
+                        height: { ideal: targetRes.height },
+                        frameRate: { ideal: fpsVal, max: fpsVal } 
+                    }
+                };
+
+                // 4. GET STREAM
                 let rawStream;
                 try {
-                    // Attempt A: Request "User" camera (Good for Mobile)
-                    rawStream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: true, 
-                        video: { facingMode: "user" } 
-                    });
+                    rawStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
                 } catch (e) {
-                    // Attempt B: Fallback to ANY camera (Required for Desktop)
-                    console.warn("User camera not found, falling back to default...", e);
+                    console.warn("Requested quality failed, falling back to VGA...", e);
                     rawStream = await navigator.mediaDevices.getUserMedia({ 
                         audio: true, 
                         video: true 
                     });
                 }
 
-                // 2. Play Raw Video (Hidden)
+                // 5. PLAY RAW
                 const rawVideo = document.getElementById('rawVideo');
                 rawVideo.srcObject = rawStream;
-                // Use playsInline to prevent fullscreen on iOS
                 rawVideo.setAttribute("playsinline", true); 
                 await rawVideo.play();
 
-                // 3. Setup Canvas
+                // 6. SETUP CANVAS
                 const canvas = document.getElementById('processorCanvas');
-                const ctx = canvas.getContext('2d');
+                const ctx = canvas.getContext('2d', { alpha: false });
 
-                // 4. Processing Loop (Checks Orientation Every Frame)
+                // 7. PROCESS LOOP
                 function processFrame() {
                     if (rawVideo.paused || rawVideo.ended) return;
 
-                    // 🔄 AUTO-RESIZE: If phone rotates, update canvas size immediately
                     if (canvas.width !== rawVideo.videoWidth || canvas.height !== rawVideo.videoHeight) {
                         canvas.width = rawVideo.videoWidth;
                         canvas.height = rawVideo.videoHeight;
                     }
-                    
-                    // Apply Filter
-                    // Ensure 'filters' and 'currentFilterIndex' exist in your global scope
-                    if (typeof filters !== 'undefined' && typeof currentFilterIndex !== 'undefined') {
-                        ctx.filter = filters[currentFilterIndex];
+
+                    if (typeof filters !== 'undefined' && typeof currentFilterIndex !== 'undefined' && currentFilterIndex !== 0) {
+                        ctx.filter = typeof filters[currentFilterIndex] === 'object' 
+                                     ? filters[currentFilterIndex].color 
+                                     : filters[currentFilterIndex];     
+                    } else {
+                        ctx.filter = "none";
                     }
                     
-                    // Draw
                     ctx.drawImage(rawVideo, 0, 0, canvas.width, canvas.height);
-                    
                     requestAnimationFrame(processFrame);
                 }
                 processFrame();
 
-                // 5. Capture Stream (FPS set to 30 for smoothness)
-                const canvasStream = canvas.captureStream(30);
+                // 8. CAPTURE AT SELECTED FPS
+                const canvasStream = canvas.captureStream(fpsVal); 
                 
-                // Add Audio Track back (Important: canvasStream usually has no audio)
                 const audioTrack = rawStream.getAudioTracks()[0];
                 if (audioTrack) canvasStream.addTrack(audioTrack);
 
                 localStream = canvasStream;
                 
-                // Show Local Video
                 const videoEl = document.getElementById("localVideo");
                 videoEl.srcObject = localStream;
-                videoEl.className = ''; // Remove CSS filters since we are processing in Canvas
+                videoEl.className = ''; 
             }
         } catch (e) {
             console.error(e);
-            let msg = e.message;
-            if (e.name === "NotFoundError" || e.name === "DevicesNotFoundError") {
-                msg = "No camera found. Please check your device.";
-            } else if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
-                msg = "Permission denied. Please allow camera access.";
-            }
-            alert("Error: " + msg);
+            alert("Error: " + e.message);
             cleanupCall();
         }
     }
@@ -1228,6 +1426,32 @@
         document.getElementById("overlay").classList.toggle("active");
     }
 
+    // --- MENU TOGGLE & CLICK OUTSIDE LOGIC ---
+    function toggleMoreMenu() {
+        const menu = document.getElementById("more-menu");
+        // Simple toggle
+        if (menu.style.display === "flex") {
+            menu.style.display = "none";
+        } else {
+            menu.style.display = "flex";
+        }
+    }
+
+    // LISTENER: Closes menu ONLY if clicking outside
+    document.addEventListener('click', function(e) {
+        const menu = document.getElementById("more-menu");
+        const btn = document.getElementById("btn-more");
+
+        if (menu.style.display !== "flex") return;
+
+        if (menu.contains(e.target)) return;
+
+        if (btn.contains(e.target)) return;
+
+        menu.style.display = "none";
+    });
+
+
     // --- FLASH / FACE LIGHT LOGIC ---
     const flashModes = [
         { color: '#111', icon: '🔦', name: 'Off' },       // Default Dark
@@ -1244,29 +1468,18 @@
     let currentFlashIndex = 0;
 
     function cycleFlash() {
-        // 1. Increment index
         currentFlashIndex = (currentFlashIndex + 1) % flashModes.length;
         const mode = flashModes[currentFlashIndex];
 
-        // 2. Apply to Container Background
+        // 1. Apply Background
         document.getElementById("video-container").style.background = mode.color;
 
-        // 3. Update Button Icon & Style
-        const btn = document.getElementById("btn-flash");
-        btn.innerText = mode.icon;
-        
-        if (currentFlashIndex === 0) {
-            btn.classList.remove("btn-active"); 
-            btn.style.background = ""; 
-            btn.style.color = "";
-        } else {
-            btn.classList.add("btn-active");
-            // Set button color to match the flash for visual feedback
-            btn.style.background = mode.color;
-            btn.style.color = '#000'; // Keep text dark for contrast
-        }
+        // 2. Update Menu Icon & Text
+        const iconSpan = document.getElementById("menu-icon-flash");
+        const textSpan = document.getElementById("menu-text-flash");
+        if(iconSpan) iconSpan.innerText = mode.icon;
+        if(textSpan) textSpan.innerText = `Flash: ${mode.name}`;
 
-        // 4. Show Toast
         showToast(`Flash: ${mode.name}`);
     }
 
