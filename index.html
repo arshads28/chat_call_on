@@ -42,20 +42,20 @@
     .chat-name { font-weight: bold; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .chat-preview { font-size: 13px; color: #aaa; margin-top: 3px; }
 
-    /* --- CONTROLS (Vertical Layout Fix) --- */
+    /* --- CONTROLS --- */
     .controls-container { 
         padding: 15px; 
         background: #1f2936; 
         border-top: 1px solid #333; 
         display: flex;
-        flex-direction: column; /* VERTICAL STACKING */
+        flex-direction: column; 
         gap: 15px;
     }
     .controls-container label { font-size: 12px; color: #888; display: block; margin-bottom: 5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
     
     .input-group { 
         display: flex; 
-        flex-direction: column; /* Inputs stacked vertically */
+        flex-direction: column; 
         gap: 8px; 
         width: 100%;
     }
@@ -113,9 +113,12 @@
     .sender-name { font-size: 11px; font-weight: bold; color: var(--primary); display: block; margin-bottom: 2px; cursor: pointer; text-decoration: underline; }
     .sender-name:hover { color: #005f8f; }
 
-    .message .meta { display: flex; justify-content: flex-end; align-items: center; margin-top: 2px; font-size: 10px; color: rgba(0,0,0,0.45); }
-    .message.mine .meta { color: rgba(255,255,255,0.7); }
-    .tick { margin-left: 5px; font-weight: bold; display: inline-block; width: 15px; }
+    /* TIME STAMP STYLES */
+    .message .meta-row { display: flex; justify-content: flex-end; align-items: center; margin-top: 4px; gap: 5px; }
+    .timestamp { font-size: 10px; color: rgba(0,0,0,0.45); }
+    .message.mine .timestamp { color: rgba(0,0,0,0.45); } 
+
+    .tick { font-weight: bold; display: inline-block; width: 15px; font-size: 10px; color: rgba(0,0,0,0.45); }
     .tick.sent::after { content: "✓"; }
     .tick.delivered::after { content: "✓✓"; letter-spacing: -2px; }
     .tick.read { color: #4fc3f7; }
@@ -402,7 +405,8 @@
 
             } else if (data.type === 'chat') {
                 if (data.sender === username) return;
-                addMessage(data.content, 'theirs', data.sender, data.id);
+                // PASSING THE TIME FROM BACKEND
+                addMessage(data.content, 'theirs', data.sender, data.id, '', data.time);
                 ws.send(JSON.stringify({ action: "status_delivered", id: data.id }));
                 if (!document.hidden) ws.send(JSON.stringify({ action: "status_read", id: data.id }));
 
@@ -444,7 +448,7 @@
             subText = "1-on-1";
             bgColor = "#4cd964";
         } else if (roomName === 'global') {
-            return; // Global is hardcoded
+            return;
         }
 
         div.innerHTML = `
@@ -519,12 +523,15 @@
             id: msgId 
         }));
     
-        addMessage(content, 'mine', 'Me', msgId, 'sent');
+        // Local echo: Use local browser time for immediate display
+        const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        addMessage(content, 'mine', 'Me', msgId, 'sent', now);
         input.value = "";
     }
     function handleKey(e) { if(e.key === "Enter") sendMessage(); }
 
-    function addMessage(text, type, sender, msgId = null, initialStatus = '') {
+    // --- ADD MESSAGE UPDATED WITH TIMESTAMP ---
+    function addMessage(text, type, sender, msgId = null, initialStatus = '', timestamp = '') {
         const box = document.getElementById("messages");
         const div = document.createElement("div");
         div.className = `message ${type}`;
@@ -538,9 +545,15 @@
 
         html += `${text}`;
     
-        if (type === 'mine') {
-            html += `<div class="meta"><span class="tick ${initialStatus}"></span></div>`;
+        // Add meta row for time and ticks
+        html += `<div class="meta-row">`;
+        if (timestamp) {
+            html += `<span class="timestamp">${timestamp}</span>`;
         }
+        if (type === 'mine') {
+            html += `<span class="tick ${initialStatus}"></span>`;
+        }
+        html += `</div>`;
     
         div.innerHTML = html;
         box.appendChild(div);

@@ -1,5 +1,6 @@
 import json
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from datetime import datetime
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query,Header
 from fastapi.responses import HTMLResponse
 from typing import Dict
 
@@ -92,8 +93,23 @@ async def get():
         return HTMLResponse(content=f.read())
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, username: str = Query(...)):
+async def websocket_endpoint(websocket: WebSocket, username: str = Query(...),user_agent: str | None = Header(default=None)):
     await websocket.accept()
+
+    # SECURITY LOGGING START
+    client_host = websocket.client.host
+    client_port = websocket.client.port
+    login_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    print(f"\n🔒 [SECURITY LOG] New Connection Accepted")
+    print(f"   👤 User: {username}")
+    print(f"   🌍 IP Address: {client_host}")
+    print(f"   📱 Device: {user_agent}")
+    print(f"   🚪 Port: {client_port}")
+    print(f"   ⏰ Time: {login_time}")
+    print("-" * 40)
+    # SECURITY LOGGING END 
+
     current_room = "global"
     await manager.join_room("global", username, websocket)
 
@@ -105,11 +121,13 @@ async def websocket_endpoint(websocket: WebSocket, username: str = Query(...)):
 
             if action == "message":
                 msg_id = msg_data.get("id")
+                time_str = datetime.now().strftime("%I:%M %p") 
                 if current_room in manager.rooms:
                     await manager.rooms[current_room].broadcast({
                         "type": "chat", 
                         "content": msg_data["content"],
-                        "id": msg_id
+                        "id": msg_id,
+                        "time": time_str  
                     }, sender_name=username)
 
             elif action in ["status_delivered", "status_read"]:
