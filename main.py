@@ -1,3 +1,4 @@
+import os
 import json
 import time
 from datetime import datetime
@@ -118,7 +119,8 @@ manager = RoomManager()
 
 @app.get("/")
 async def get():
-    with open("index.html", "r") as f:
+    file_path = os.path.join(os.path.dirname(__file__), "index.html")
+    with open(file_path, "r") as f:
         return HTMLResponse(content=f.read())
 
 @app.websocket("/ws")
