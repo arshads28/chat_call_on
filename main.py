@@ -1,10 +1,39 @@
 import json
+import time
 from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query,Header
 from fastapi.responses import HTMLResponse
 from typing import Dict
+from collections import defaultdict, deque
 
 app = FastAPI()
+
+
+
+class RateLimiter:
+    def __init__(self, max_messages: int = 10, period_seconds: int = 10):
+        self.max_messages = max_messages
+        self.period_seconds = period_seconds
+        # Dictionary: Key = username, Value = List of timestamps
+        self.user_history = defaultdict(deque)
+
+    def is_allowed(self, username: str) -> bool:
+        current_time = time.time()
+        user_timestamps = self.user_history[username]
+
+        #  Remove timestamps that are too old (expired)
+        while user_timestamps and user_timestamps[0] < current_time - self.period_seconds:
+            user_timestamps.popleft()
+
+        #  Check if they have space left
+        if len(user_timestamps) < self.max_messages:
+            user_timestamps.append(current_time)
+            return True
+        else:
+            return False
+
+limiter = RateLimiter(max_messages=10, period_seconds=10) # 10 messages per 10 seconds
+
 
 # --- ROOM MANAGER ---
 class Room:
@@ -120,6 +149,17 @@ async def websocket_endpoint(websocket: WebSocket, username: str = Query(...),us
             action = msg_data.get("action")
 
             if action == "message":
+
+                # RATE LIMIT CHECK START ---
+                if not limiter.is_allowed(username):
+                    # If spamming, send error ONLY to this user
+                    await websocket.send_json({
+                        "type": "error", 
+                        "content": "⚠️ Slow down! You are sending messages too fast."
+                    })
+                    print(f"🚫 [BLOCKED] {username} is spamming.")
+                    continue
+
                 msg_id = msg_data.get("id")
                 time_str = datetime.now().strftime("%I:%M %p") 
                 if current_room in manager.rooms:
