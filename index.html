@@ -275,6 +275,9 @@
                 <input type="password" id="join-room-pass" placeholder="Password">
                 <button onclick="joinCustomRoom()">Join Room</button>
             </div>
+                <div class="input-group" style="margin-top: 20px; border-top: 1px solid #333; padding-top: 15px;">
+                <button onclick="logout()" style="background: #ff3b30;">Logout / Change Name</button>
+            </div>
         </div>
     </div>
 
@@ -360,19 +363,38 @@
     const CALL_TIMEOUT_MS = 40000; 
 
     document.addEventListener("DOMContentLoaded", () => {
-        document.getElementById("incoming-call").style.display = "none";
-        document.getElementById("outgoing-call").style.display = "none";
-        
-        // Handle Back Button (Browser History)
-        window.onpopstate = function(event) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                const urlParams = new URLSearchParams(window.location.search);
-                const roomToJoin = urlParams.get('room') || 'global';
-                // Just send join, logic handles the rest
-                ws.send(JSON.stringify({ action: "join_room", name: roomToJoin }));
+            document.getElementById("incoming-call").style.display = "none";
+            document.getElementById("outgoing-call").style.display = "none";
+
+            // AUTO-LOGIN LOGIC
+            const savedName = localStorage.getItem("chat_username");
+
+            if (savedName) {
+                // 1. Set the variable
+                username = savedName;
+
+                // 2. Pre-fill the input (just in case they logout later)
+                document.getElementById("username-input").value = savedName;
+
+                // 3. Hide the Login Screen immediately
+                document.getElementById("login-screen").style.display = "none";
+
+                // 4. Update Sidebar Name (if you added that profile section)
+                const profileDisplay = document.getElementById("my-username-display");
+                if(profileDisplay) profileDisplay.innerText = savedName;
+
+                // 5. Connect to Server
+                connectWebSocket();
             }
-        };
-    });
+
+            // Handle Back Button History
+            window.onpopstate = function(event) {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    const roomToJoin = new URLSearchParams(window.location.search).get('room') || 'global';
+                    ws.send(JSON.stringify({ action: "join_room", name: roomToJoin }));
+                }
+            };
+        });
 
     function playRing(type) {
         const audio = document.getElementById(`ring-${type}`);
@@ -393,8 +415,24 @@
         const input = document.getElementById("username-input");
         if (!input.value.trim()) return;
         username = input.value.trim();
+
+        // 💾 SAVE NAME FOR NEXT TIME
+        localStorage.setItem("chat_username", username);
+
         document.getElementById("login-screen").style.display = "none";
+        
+        // Update sidebar profile name if it exists
+        const profileDisplay = document.getElementById("my-username-display");
+        if(profileDisplay) profileDisplay.innerText = username;
+
         connectWebSocket();
+    }
+
+    function logout() {
+        // 1. Delete the saved name
+        localStorage.removeItem("chat_username");
+        // 2. Reload the page (Login screen will appear now)
+        window.location.reload();
     }
 
     function connectWebSocket() {
@@ -869,6 +907,17 @@
     async function initMedia(videoEnabled) {
         try {
             if (!localStream) {
+
+                // IF AUDIO ONLY (Skip Beauty Filter) ---
+                if (!videoEnabled) {
+                    localStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: true, 
+                        video: false 
+                    });
+                    return; // Stop here! Don't do canvas logic.
+                }
+
+
                 // 1. Get Camera with flexible constraints (Works better for mobile)
                 const rawStream = await navigator.mediaDevices.getUserMedia({ 
                     audio: true, 
