@@ -95,47 +95,66 @@
     }
     
     #video-grid {
-        flex: 1;
         display: flex;
         flex-wrap: wrap;
-        justify-content: center;
-        align-content: center;
-        gap: 10px;
+        justify-content: center; /* Center horizontally */
+        align-items: center;     /* Center vertically */
+        align-content: center;   /* Center rows if multiple lines */
+        gap: 12px;               /* Consistent gap between tiles */
         padding: 20px;
-        overflow-y: auto;
+        width: 100%;
+        height: 100%;            /* Fill the screen */
+        overflow-y: auto;        /* Scroll if too many people */
     }
 
     /* Dynamic Sizing: Fits 1, 2, 4, or 6 people automatically */
 /* UPDATED: wrappers background must be transparent to let Flash shine through */
     .remote-video-wrapper {
         position: relative;
-        background: transparent; /* Changed from #000 */
-        border-radius: 12px;
+        background: #000;        /* Black bars for portrait videos */
+        border-radius: 8px;      /* Slight professional rounding */
+        border: 1px solid #333;  /* Subtle border */
         overflow: hidden;
-        border: 1px solid rgba(255,255,255,0.1);
-        flex: 1 1 300px;
+        
+        /* ZOOM SIZING LOGIC: */
+        flex: 1 1 45%;           /* Grow to fill, base is 45% (2 per row) */
+        aspect-ratio: 16/9;      /* Enforce standard meeting shape */
+        
+        /* Constraints to prevent it getting too huge or too tiny */
+        max-width: 1200px;
+        min-width: 280px;        
+        max-height: 80vh;        /* Never taller than 80% of screen */
+
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5); /* Deep shadow */
+        transition: all 0.3s ease;
+    }
+    /* Single participant view (optional optimization) */
+    .remote-video-wrapper:only-child {
+        flex: 1 1 100%;
         max-width: 100%;
-        height: 300px; 
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        height: auto;
     }
     
     .remote-video-wrapper video { 
         width: 100%; 
         height: 100%; 
-        
-        /* 'contain' shows the whole vertical phone screen.
-           'cover' would crop the head and chin. */
-        object-fit: contain; 
+        object-fit: contain; /* Shows full video (no cropping) inside the box */
     }
 
     .remote-label {
-        position: absolute; bottom: 10px; left: 10px;
-        background: rgba(0,0,0,0.6); color: white;
-        padding: 4px 10px; border-radius: 4px; font-size: 12px;
-        font-weight: bold;
+        position: absolute; 
+        bottom: 12px; 
+        left: 12px;
+        background: rgba(0, 0, 0, 0.6); 
+        color: white;
+        padding: 4px 10px; 
+        border-radius: 4px; 
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        backdrop-filter: blur(4px); /* Glassmorphism effect */
+        pointer-events: none;       /* Clicks pass through */
+        text-shadow: 0 1px 2px rgba(0,0,0,0.8);
     }
 
     /* Floating Local Video (Keep as is) */
@@ -348,9 +367,8 @@
             <div class="video-controls">
                 <button class="ctrl-btn btn-active" onclick="toggleAudio()" id="btn-audio">🎤</button>
                 <button class="ctrl-btn btn-active" onclick="toggleVideo()" id="btn-video">📷</button>
-
                 <button class="ctrl-btn" onclick="cycleFlash()" id="btn-flash">🔦</button>
-
+                <button class="ctrl-btn" onclick="togglePiP()" id="btn-pip">🖼️</button>
                 <button class="ctrl-btn" onclick="cycleFilters()">✨</button>
                 <button class="ctrl-btn btn-end-call" onclick="endCall()">📞</button>
             </div>
@@ -373,8 +391,8 @@
         </div>
     </div>
 
-    <audio id="ring-outgoing" loop src="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3"></audio> 
-    <audio id="ring-incoming" loop src="https://assets.mixkit.co/active_storage/sfx/1361/1361-preview.mp3"></audio>
+    <audio id="ring-incoming" loop src="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3"></audio> 
+    <audio id="ring-outgoing" loop src="https://assets.mixkit.co/active_storage/sfx/1361/1361-preview.mp3"></audio>
 
     <div id="outgoing-call" class="call-modal">
         <div class="avatar-pulse">📞</div>
@@ -1251,6 +1269,73 @@
         // 4. Show Toast
         showToast(`Flash: ${mode.name}`);
     }
+
+    // --- PICTURE IN PICTURE LOGIC ---
+    async function togglePiP() {
+        // 1. Try Document Picture-in-Picture (Desktop Chrome/Edge)
+        // This pops out the WHOLE grid div, keeping layout and names.
+        if ('documentPictureInPicture' in window) {
+            try {
+                const pipWindow = await documentPictureInPicture.requestWindow({
+                    width: 800,
+                    height: 600,
+                });
+
+                // Move the Grid into the new Window
+                const grid = document.getElementById("video-grid");
+                pipWindow.document.body.append(grid);
+
+                // Copy styles so the grid looks correct in the new window
+                // We copy all <style> and <link rel="stylesheet"> tags
+                [...document.styleSheets].forEach((styleSheet) => {
+                    try {
+                        if (styleSheet.href) { // External CSS
+                            const link = document.createElement('link');
+                            link.rel = 'stylesheet';
+                            link.href = styleSheet.href;
+                            pipWindow.document.head.appendChild(link);
+                        } else { // Internal CSS (<style>)
+                            const cssRules = [...styleSheet.cssRules].map(r => r.cssText).join('');
+                            const style = document.createElement('style');
+                            style.textContent = cssRules;
+                            pipWindow.document.head.appendChild(style);
+                        }
+                    } catch (e) { console.log(e); }
+                });
+
+                // Listen for close event to bring grid back
+                pipWindow.addEventListener("pagehide", (event) => {
+                    const container = document.getElementById("video-container");
+                    const localWrapper = document.getElementById("localVideoWrapper");
+                    // Insert grid back into original container
+                    container.insertBefore(grid, localWrapper); 
+                });
+                
+                return; // Success
+            } catch (err) {
+                console.log("Document PiP failed, trying standard...", err);
+            }
+        }
+
+        // 2. Fallback: Standard PiP (Mobile / Firefox / Safari)
+        // This only floats ONE video stream. We pick the first remote user, or you.
+        const remoteVideos = document.querySelectorAll("#video-grid video");
+        const targetVideo = remoteVideos.length > 0 ? remoteVideos[0] : document.getElementById("localVideo");
+
+        try {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+            } else if (targetVideo && targetVideo.readyState >= 1) {
+                await targetVideo.requestPictureInPicture();
+            } else {
+                 showToast("Video not ready for PiP");
+            }
+        } catch (error) {
+            console.error("Standard PiP failed:", error);
+            showToast("PiP not supported");
+        }
+    }
+
 </script>
 </body>
 </html>
