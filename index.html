@@ -236,14 +236,15 @@
             <div class="input-group">
                 <label>Create New Room</label>
                 <input type="text" id="new-room-name" placeholder="Room Name">
-                <input type="password" id="new-room-pass" placeholder="Pass (Optional)">
+                <input type="number" id="new-room-limit" placeholder="Max" min="2" max="10" value="2">
+                <input type="password" id="new-room-pass" placeholder="Password (Optional)">
                 <button onclick="createRoom()">Create Room</button>
             </div>
             
             <div class="input-group">
                 <label>Join Existing</label>
                 <input type="text" id="join-room-name" placeholder="Room Name">
-                <input type="password" id="join-room-pass" placeholder="Pass">
+                <input type="password" id="join-room-pass" placeholder="Password">
                 <button onclick="joinCustomRoom()">Join Room</button>
             </div>
         </div>
