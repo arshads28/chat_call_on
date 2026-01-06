@@ -84,11 +84,143 @@
 
 
     /* --- VIDEO CALL OVERLAY --- */
+/* UPDATED: Container supports smooth color transition for Flash Mode */
     #video-container { 
-        display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-        background: #111; z-index: 500; align-items: center; justify-content: center;
+        display: none; 
+        position: absolute; inset: 0; 
+        background: #111; /* Default Dark */
+        z-index: 500; 
+        flex-direction: column;
+        transition: background 0.3s ease; /* Smooth light change */
     }
-    #remoteVideo { width: 100%; height: 100%; object-fit: contain; background: #000; }
+    
+/* --- GOOGLE MEET STYLE GRID --- */
+    #video-grid {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        align-content: center;
+        gap: 16px; /* Professional spacing */
+        padding: 20px;
+        width: 100%;
+        height: 100%;
+        overflow-y: auto;
+        transition: all 0.3s ease;
+    }
+
+    /* --- VIDEO TILES --- */
+    .remote-video-wrapper {
+        position: relative;
+        background: #202124; /* Google Meet Dark Grey */
+        border-radius: 12px;  /* Smooth Corners */
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        
+        /* Default Flex Behavior */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth resize animation */
+        
+        /* Default Sizing (Fallback) */
+        width: 45%;
+        aspect-ratio: 16/9;
+        max-height: 48vh;
+    }
+
+    .remote-video-wrapper video {
+        width: 100%;
+        height: 100%;
+        object-fit: contain; /* Prevents cropping heads on mobile */
+        background: #000;
+        transform: translateZ(0); /* Hardware Acceleration */
+    }
+
+    /* --- NAME TAG (Professional Glass) --- */
+    .remote-label {
+        position: absolute;
+        bottom: 12px;
+        left: 12px;
+        color: white;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.3px;
+        backdrop-filter: blur(4px);
+        text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        pointer-events: none;
+        z-index: 10;
+    }
+
+    /* --- SMART LAYOUT LOGIC (Controlled by JS Attribute) --- */
+    
+    /* 1 Participant: Full Focus */
+    #video-grid[data-count="1"] .remote-video-wrapper {
+        width: 100%;
+        max-width: 1200px;
+        height: auto;
+        aspect-ratio: 16/9;
+        max-height: 85vh;
+    }
+
+    /* 2 Participants: Split Screen */
+    #video-grid[data-count="2"] .remote-video-wrapper {
+        width: 48%;
+        max-width: 900px;
+        aspect-ratio: 16/9;
+    }
+
+    /* 3-4 Participants: 2x2 Grid */
+    #video-grid[data-count="3"] .remote-video-wrapper,
+    #video-grid[data-count="4"] .remote-video-wrapper {
+        width: 45%;
+        max-width: 600px;
+        aspect-ratio: 16/9;
+    }
+
+    /* 5-6 Participants: 3 Columns */
+    #video-grid[data-count="5"] .remote-video-wrapper,
+    #video-grid[data-count="6"] .remote-video-wrapper {
+        width: 31%; /* Fits 3 in a row */
+        aspect-ratio: 4/3; /* Slightly taller for density */
+    }
+
+    /* Mobile Optimization for Grid */
+    @media (max-width: 768px) {
+        #video-grid { padding: 10px; gap: 8px; }
+        
+        /* On phone, stacking 2 people vertically is better */
+        #video-grid[data-count="2"] .remote-video-wrapper {
+            width: 100%;
+            height: 40vh;
+        }
+        
+        #video-grid[data-count="3"] .remote-video-wrapper,
+        #video-grid[data-count="4"] .remote-video-wrapper {
+            width: 48%; /* 2x2 on mobile too */
+            height: 25vh;
+        }
+    }
+
+        .remote-video-wrapper:only-child {
+        flex: 1 1 100%;
+        max-width: 100%;
+        height: auto;
+    }
+
+    /* Floating Local Video (Keep as is) */
+    #localVideoWrapper {
+        position: absolute; bottom: 100px; right: 20px; 
+        width: 140px; height: 200px; z-index: 501;
+        /* ... keep your existing shadow/border styles ... */
+    }
     
     /* Draggable Local Video */
     #localVideoWrapper {
@@ -215,6 +347,75 @@
     #invite-toast button { padding: 5px 15px; border-radius: 5px; border: none; cursor: pointer; }
     #invite-toast .btn-yes { background: #4cd964; color: white; }
     #invite-toast .btn-no { background: #ff3b30; color: white; }
+
+    /* --- SETTINGS MODAL --- */
+    .settings-modal {
+        display: none; position: fixed; inset: 0; 
+        background: rgba(0,0,0,0.8); z-index: 6000;
+        justify-content: center; align-items: center;
+        backdrop-filter: blur(5px);
+    }
+    .settings-content {
+        background: #1f2936; color: white;
+        padding: 25px; border-radius: 12px; width: 90%; max-width: 400px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        border: 1px solid #333;
+    }
+    .settings-content h3 { margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px; }
+    
+    .setting-group { margin-bottom: 15px; }
+    .setting-group label { display: block; font-size: 12px; color: #aaa; margin-bottom: 5px; text-transform: uppercase; }
+    .setting-group select {
+        width: 100%; padding: 10px; background: #0e1621; color: white;
+        border: 1px solid #333; border-radius: 6px; outline: none; font-size: 14px;
+    }
+    
+    .btn-save {
+        width: 100%; padding: 12px; background: #0088cc; color: white;
+        border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px;
+    }
+    .btn-save:hover { background: #0077b5; }
+
+    /* --- MORE MENU POPUP --- */
+    #more-menu {
+        display: none;
+        position: absolute;
+        bottom: 80px; /* Appears above the control bar */
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(20, 20, 20, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid #333;
+        border-radius: 12px;
+        padding: 8px;
+        width: 200px;
+        flex-direction: column;
+        gap: 5px;
+        z-index: 505;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    
+    #more-menu button {
+        background: transparent;
+        border: none;
+        color: white;
+        padding: 12px 15px;
+        text-align: left;
+        font-size: 14px;
+        cursor: pointer;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        transition: background 0.2s;
+        width: 100%;
+    }
+    
+    #more-menu button:hover { background: rgba(255,255,255,0.1); }
+    #more-menu button:active { transform: scale(0.98); }
+    
+    /* Icon styling in the menu */
+    .menu-icon { font-size: 18px; width: 25px; text-align: center; }
 </style>
 </head>
 <body onclick="closeContextMenu()">
@@ -283,17 +484,40 @@
 
     <div class="main-chat">
         <div id="video-container">
-                    <video id="remoteVideo" autoplay playsinline></video>
+            <div id="video-grid"></div>
+        
+            <div id="localVideoWrapper" onmousedown="startDrag(event)">
+                <video id="localVideo" autoplay playsinline muted></video>
+                <div style="position:absolute; bottom:5px; right:5px; color:white; font-size:10px; background:rgba(0,0,0,0.5); padding:2px 5px; border-radius:3px;">You</div>
+            </div>
+        
+            <div class="video-controls">
+                <button class="ctrl-btn btn-active" onclick="toggleAudio()" id="btn-audio">🎤</button>
+                <button class="ctrl-btn btn-active" onclick="toggleVideo()" id="btn-video">📷</button>
+                <button class="ctrl-btn" onclick="toggleMoreMenu()" id="btn-more">☰</button>
+                <button class="ctrl-btn btn-end-call" onclick="endCall()">📞</button>
+            </div>
+        
+            <div id="more-menu">
+                <button onclick="cycleFlash()">
+                    <span class="menu-icon" id="menu-icon-flash">🔦</span> 
+                    <span id="menu-text-flash">Flash / Glow</span>
+                </button>
 
-                    <div id="localVideoWrapper" onmousedown="startDrag(event)">
-                        <video id="localVideo" autoplay playsinline muted></video>
-                    </div>
-                
-                    <div class="video-controls">
-                        <button class="ctrl-btn btn-active" onclick="toggleAudio()" id="btn-audio">🎤</button>
-                        <button class="ctrl-btn btn-active" onclick="toggleVideo()" id="btn-video">📷</button>
-                        <button class="ctrl-btn" onclick="cycleFilters()">✨</button>
-                        <button class="ctrl-btn btn-end-call" onclick="endCall()">📞</button>
+                <button onclick="cycleFilters()">
+                    <span class="menu-icon">✨</span> 
+                    Filters / Effects
+                </button>
+
+                <button onclick="togglePiP(); toggleMoreMenu()">
+                    <span class="menu-icon">🖼️</span> 
+                    Picture-in-Picture
+                </button>
+
+                <button onclick="openSettings(); toggleMoreMenu()">
+                    <span class="menu-icon">⚙️</span> 
+                    Settings
+                </button>
             </div>
         </div>
 
@@ -314,8 +538,8 @@
         </div>
     </div>
 
-    <audio id="ring-outgoing" loop src="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3"></audio> 
-    <audio id="ring-incoming" loop src="https://assets.mixkit.co/active_storage/sfx/1361/1361-preview.mp3"></audio>
+    <audio id="ring-incoming" loop src="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3"></audio> 
+    <audio id="ring-outgoing" loop src="https://assets.mixkit.co/active_storage/sfx/1361/1361-preview.mp3"></audio>
 
     <div id="outgoing-call" class="call-modal">
         <div class="avatar-pulse">📞</div>
@@ -338,6 +562,42 @@
         </div>
     </div>
 
+    <div id="settings-modal" class="settings-modal">
+        <div class="settings-content">
+            <h3>Call Settings</h3>
+            
+            <div class="setting-group">
+                <label>Video Quality</label>
+                <select id="set-quality">
+                    <option value="fhd">Full HD+ (1080p) - High CPU</option>
+                    <option value="hd">HD (720p) - Medium</option>
+                    <option value="vga" selected>VGA (480p) - Fast</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>Frame Rate (FPS)</label>
+                <select id="set-fps">
+                    <option value="30">30 FPS - Smooth</option>
+                    <option value="24">24 FPS - Cinematic</option>
+                    <option value="20" selected>20 FPS - Low Latency</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>Audio Quality</label>
+                <select id="set-audio">
+                    <option value="high">High (Studio/Music)</option>
+                    <option value="med">Medium (Speech)</option>
+                    <option value="low" selected>Low (Data Saver)</option>
+                </select>
+            </div>
+
+            <button class="btn-save" onclick="applySettings()">Apply & Restart Media</button>
+            <button class="btn-save" style="background:#333; margin-top:10px;" onclick="closeSettings()">Cancel</button>
+        </div>
+    </div>
+
 <script>
     let pendingCaller = null;
     let pendingCallType = null;
@@ -356,7 +616,8 @@
     // WEBRTC VARIABLES
     let activeCall = false;
     let callType = null; 
-    let localStream;
+    let localStream;      // The stream sent to others (Canvas + Audio)
+    let rawStream;        // NEW: The actual hardware camera stream (Global)
     const peerConnections = {};
     const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
     let callTimeoutTimer = null;
@@ -702,7 +963,7 @@
     // --- WEBRTC ---
     function sendSignal(data, target = null) {
         const payload = { action: "signal", data: data };
-        if (target) payload.target = target;
+        if (target) payload.data.target = target;
         ws.send(JSON.stringify(payload));
     }
 
@@ -712,22 +973,33 @@
             return;
         }
         callType = type; 
-        document.getElementById("outgoing-call").style.display = "flex";
-        playRing('outgoing');
-        if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-        callTimeoutTimer = setTimeout(() => {
-            cancelCall(); 
-            showToast("No answer, call ended.");
-        }, CALL_TIMEOUT_MS);
-        sendSignal({ type: "call_invite", callType: type });
+        activeCall = true;
+        document.getElementById("video-container").style.display = "flex";
+        // Initialize Camera/Mic
+        await initMedia(callType === "video");
+        // document.getElementById("outgoing-call").style.display = "flex";
+        // playRing('outgoing');
+        // if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+        // callTimeoutTimer = setTimeout(() => {
+        //     cancelCall(); 
+        //     showToast("No answer, call ended.");
+        // }, CALL_TIMEOUT_MS);
+        // sendSignal({ type: "call_invite", callType: type });
+        sendSignal({ type: "join_call", callType: type });
+        
+        showToast("Joined call. Waiting for others...");
     }
 
+    // Cancel/End functions
     function cancelCall() {
-        if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
         stopRing();
         document.getElementById("outgoing-call").style.display = "none";
+        endCall();
+    }
+
+    function endCall() {
         sendSignal({ type: "peer_left" }); 
-        activeCall = false;
+        cleanupCall();
     }
 
     function showToast(text) {
@@ -762,92 +1034,136 @@
             return;
         }
     
-        if (data.type === "call_invite") {
-            if (activeCall) return;
-            if (sender === username) return;
-            pendingCaller = sender;
-            pendingCallType = data.callType;
-            document.getElementById("caller-name").innerText = sender;
-            document.getElementById("call-type").innerText = data.callType === "video" ? "Incoming Video Call" : "Incoming Voice Call";
-            document.getElementById("incoming-call").style.display = "flex";
-            playRing('incoming');
-            if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-            callTimeoutTimer = setTimeout(() => { declineCall(); }, CALL_TIMEOUT_MS);
-            return; 
-        }
 
-        if (data.type === "call_accept") {
-            if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
-            stopRing();
-            document.getElementById("outgoing-call").style.display = "none";
+        // Security: If message is targeted to someone else, ignore it.
+        if (data.target && data.target !== username) return;
+
+        // Someone Joined / Started Call
+        if (data.type === "join_call") {
+            if (sender === username) return;
+
+            // SCENARIO 1: I am NOT in the call yet. Show Invite.
             if (!activeCall) {
-                activeCall = true;
-                document.getElementById("video-container").style.display = "flex";
-                await initMedia(callType === "video");
+                pendingCaller = sender;
+                pendingCallType = data.callType;
+                document.getElementById("caller-name").innerText = "Group Call";
+                document.getElementById("call-type").innerText = `${sender} is calling...`;
+                document.getElementById("incoming-call").style.display = "flex";
+                playRing('incoming');
+                return;
             }
+            // SCENARIO 2: I AM in the call. Connect to them immediately (Mesh).
+            showToast(`${sender} joined.`);
             const pc = createPeerConnection(sender);
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
+            // Send offer ONLY to the new person
             sendSignal({ type: "offer", sdp: offer }, sender);
             return;
         }
-    
-        if (data.type === "call_decline") {
-            if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+
+        // if (data.type === "call_accept") {
+        //     if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+        //     stopRing();
+        //     document.getElementById("outgoing-call").style.display = "none";
+        //     if (!activeCall) {
+        //         activeCall = true;
+        //         document.getElementById("video-container").style.display = "flex";
+        //         await initMedia(callType === "video");
+        //     }
+        //     const pc = createPeerConnection(sender);
+        //     const offer = await pc.createOffer();
+        //     await pc.setLocalDescription(offer);
+        //     sendSignal({ type: "offer", sdp: offer }, sender);
+        //     return;
+        // }
+
+        if (data.type === "call_accept") {
+            // In a mesh network, we don't strictly need this, 
+            // but we can use it to stop ringing if we were the initiator.
             stopRing();
-            document.getElementById("outgoing-call").style.display = "none";
-            showToast(`${sender} declined the call`);
             return;
         }
     
+        // if (data.type === "call_decline") {
+        //     if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+        //     stopRing();
+        //     document.getElementById("outgoing-call").style.display = "none";
+        //     showToast(`${sender} declined the call`);
+        //     return;
+        // }
+
+        if (data.type === "call_decline") {
+            showToast(`${sender} declined.`);
+            return;
+        }
+    
+        // WebRTC Handshake (Offer/Answer/Candidate)
         if (data.type === "offer") {
+            if (!activeCall) return; // Ignore offers if I'm not in call mode
+            
             const pc = createPeerConnection(sender);
             await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
+            
+            // Send answer back ONLY to sender
             sendSignal({ type: "answer", sdp: answer }, sender);
             return;
         }
         if (data.type === "answer") {
-            if (peerConnections[sender]) await peerConnections[sender].setRemoteDescription(new RTCSessionDescription(data.sdp));
+            if (peerConnections[sender]) {
+                await peerConnections[sender].setRemoteDescription(new RTCSessionDescription(data.sdp));
+            }
             return;
         }
+
         if (data.type === "candidate") {
-            if (peerConnections[sender]) await peerConnections[sender].addIceCandidate(new RTCIceCandidate(data.candidate));
+            if (peerConnections[sender]) {
+                await peerConnections[sender].addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+            return;
         }
         if (data.type === "peer_left") {
-            document.getElementById("incoming-call").style.display = "none"; 
-            stopRing();
-            if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
+            // Close connection
             if (peerConnections[sender]) {
                 peerConnections[sender].close();
                 delete peerConnections[sender];
             }
-            if (Object.keys(peerConnections).length === 0) cleanupCall();
+            // Remove video from Grid
+            removeRemoteVideo(sender);
+            showToast(`${sender} left.`);
+
+            // AUTOMATIC CANCEL: If no one else is left, end my call
+            if (Object.keys(peerConnections).length === 0) {
+                showToast("Everyone left. Ending call...");
+                setTimeout(cleanupCall, 2000); // Give user 2 seconds to see the message
+            }
             return;
         }
     }
 
     async function acceptCall() {
-        if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
         stopRing();
         document.getElementById("incoming-call").style.display = "none";
+        
         activeCall = true;
-        callType = pendingCallType;
+        callType = pendingCallType || 'video';
+        
         document.getElementById("video-container").style.display = "flex";
         await initMedia(callType === "video");
-        sendSignal({ type: "call_accept" }, pendingCaller);
-        pendingCaller = null;
-        pendingCallType = null;
+
+        // Broadcast to everyone: "I have joined!"
+        sendSignal({ type: "join_call", callType: callType });
     }
 
     function declineCall() {
-        if(callTimeoutTimer) clearTimeout(callTimeoutTimer);
         stopRing();
         document.getElementById("incoming-call").style.display = "none";
-        sendSignal({ type: "call_decline" }, pendingCaller);
+        // Notify pending caller we declined (optional in group, but good for 1v1 feel)
+        if(pendingCaller) sendSignal({ type: "call_decline" }, pendingCaller);
         pendingCaller = null;
-        pendingCallType = null;
     }
 
     //  NEW FILTER & DRAG FUNCTIONS 
@@ -864,164 +1180,423 @@
         currentFilterIndex = (currentFilterIndex + 1) % filters.length;
     }
 
-    function toggleAudio() {
-        if(localStream) {
-            const track = localStream.getAudioTracks()[0];
-            track.enabled = !track.enabled;
-            const btn = document.getElementById('btn-audio');
-            if(track.enabled) { btn.classList.remove('btn-off'); btn.classList.add('btn-active'); } 
-            else { btn.classList.remove('btn-active'); btn.classList.add('btn-off'); }
-        }
-    }
+    // --- ADVANCED TOGGLE (HARDWARE CONTROL) ---
     
-    function toggleVideo() {
-        if(localStream) {
-            const track = localStream.getVideoTracks()[0];
-            track.enabled = !track.enabled;
-            const btn = document.getElementById('btn-video');
-            if(track.enabled) { btn.classList.remove('btn-off'); btn.classList.add('btn-active'); } 
-            else { btn.classList.remove('btn-active'); btn.classList.add('btn-off'); }
+    async function toggleVideo() {
+        const btn = document.getElementById('btn-video');
+        const isOff = btn.classList.contains('btn-off');
+
+        if (isOff) {
+            // --- TURN ON ---
+            try {
+                // 1. Get new Camera Stream
+                const newStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } 
+                });
+                const newVideoTrack = newStream.getVideoTracks()[0];
+
+                // 2. Re-attach to Raw Video (Feed the Canvas)
+                if (rawStream) {
+                    // Add track to existing raw stream if it exists
+                    rawStream.addTrack(newVideoTrack);
+                } else {
+                    rawStream = newStream;
+                }
+                
+                const rawVideo = document.getElementById('rawVideo');
+                rawVideo.srcObject = rawStream;
+                await rawVideo.play();
+
+                // 3. Update Button
+                btn.classList.remove('btn-off'); 
+                btn.classList.add('btn-active');
+            } catch (e) {
+                console.error("Failed to restart video", e);
+                showToast("Error starting camera");
+            }
+        } else {
+            // --- TURN OFF (Stop Hardware) ---
+            if (rawStream) {
+                const tracks = rawStream.getVideoTracks();
+                tracks.forEach(track => {
+                    track.stop();         // Kills the light
+                    rawStream.removeTrack(track);
+                });
+            }
+            // Update Button
+            btn.classList.remove('btn-active'); 
+            btn.classList.add('btn-off');
         }
     }
 
-    // Draggable Logic
-    let isDragging = false, dragOffsetX, dragOffsetY;
-    function startDrag(e) {
-        isDragging = true;
-        const elem = document.getElementById("localVideoWrapper");
-        dragOffsetX = e.clientX - elem.getBoundingClientRect().left;
-        dragOffsetY = e.clientY - elem.getBoundingClientRect().top;
-        document.addEventListener('mousemove', onDrag);
-        document.addEventListener('mouseup', stopDrag);
+    async function toggleAudio() {
+        const btn = document.getElementById('btn-audio');
+        const isOff = btn.classList.contains('btn-off');
+
+        if (isOff) {
+            // --- TURN ON ---
+            try {
+                // 1. Get new Audio Stream
+                const newStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { echoCancellation: true, noiseSuppression: true } 
+                });
+                const newAudioTrack = newStream.getAudioTracks()[0];
+
+                // 2. Update Local Stream
+                if (localStream) {
+                    localStream.addTrack(newAudioTrack);
+                }
+
+                // 3. Replace Track in ALL Peer Connections (Seamless)
+                for (const pc of Object.values(peerConnections)) {
+                    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+                    if (sender) {
+                        sender.replaceTrack(newAudioTrack);
+                    } else {
+                        // If no audio sender existed (e.g. call started video-only), add one
+                        pc.addTrack(newAudioTrack, localStream);
+                    }
+                }
+
+                // 4. Update Button
+                btn.classList.remove('btn-off'); 
+                btn.classList.add('btn-active');
+            } catch (e) {
+                console.error("Failed to restart audio", e);
+                showToast("Error starting mic");
+            }
+        } else {
+            // --- TURN OFF (Stop Hardware) ---
+            if (localStream) {
+                const tracks = localStream.getAudioTracks();
+                tracks.forEach(track => {
+                    track.stop(); // Kills the mic permission
+                    localStream.removeTrack(track);
+                });
+            }
+            
+            // Update Button
+            btn.classList.remove('btn-active'); 
+            btn.classList.add('btn-off');
+        }
     }
+
+    // --- UNIFIED DRAG LOGIC (Mouse & Touch) ---
+    let isDragging = false;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    const dragItem = document.getElementById("localVideoWrapper");
+
+    // Mouse Events
+    dragItem.addEventListener('mousedown', startDrag);
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDrag);
+
+    // Touch Events (Mobile)
+    dragItem.addEventListener('touchstart', startDrag, { passive: false });
+    document.addEventListener('touchmove', onDrag, { passive: false });
+    document.addEventListener('touchend', stopDrag);
+
+    function startDrag(e) {
+        // Get correct client coordinates (Mouse or Touch)
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        isDragging = true;
+        const rect = dragItem.getBoundingClientRect();
+        dragOffsetX = clientX - rect.left;
+        dragOffsetY = clientY - rect.top;
+        
+        // Prevent scrolling while dragging on mobile
+        if(e.cancelable) e.preventDefault();
+    }
+
     function onDrag(e) {
         if (!isDragging) return;
-        const elem = document.getElementById("localVideoWrapper");
-        elem.style.left = `${e.clientX - dragOffsetX}px`;
-        elem.style.top = `${e.clientY - dragOffsetY}px`;
-        elem.style.bottom = 'auto'; elem.style.right = 'auto';
-    }
-    function stopDrag() { isDragging = false; document.removeEventListener('mousemove', onDrag); document.removeEventListener('mouseup', stopDrag); }
+        
+        // Prevent scrolling
+        if(e.cancelable) e.preventDefault();
 
-    // Updated Init Media (With Desktop Fix)
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        // Calculate new position
+        let newLeft = clientX - dragOffsetX;
+        let newTop = clientY - dragOffsetY;
+
+        // Optional: Keep inside screen bounds
+        const maxX = window.innerWidth - dragItem.offsetWidth;
+        const maxY = window.innerHeight - dragItem.offsetHeight;
+
+        // Clamp values
+        newLeft = Math.max(0, Math.min(newLeft, maxX));
+        newTop = Math.max(0, Math.min(newTop, maxY));
+
+        dragItem.style.left = `${newLeft}px`;
+        dragItem.style.top = `${newTop}px`;
+        
+        // Reset bottom/right to allow free movement
+        dragItem.style.bottom = 'auto'; 
+        dragItem.style.right = 'auto';
+    }
+
+    function stopDrag() {
+        isDragging = false;
+    }
+
+    // --- SETTINGS LOGIC ---
+    function openSettings() {
+        document.getElementById("settings-modal").style.display = "flex";
+    }
+    function closeSettings() {
+        document.getElementById("settings-modal").style.display = "none";
+    }
+    
+    async function applySettings() {
+        closeSettings();
+        if (activeCall) {
+            // Stop current stream
+            if (localStream) {
+                localStream.getTracks().forEach(t => t.stop());
+                localStream = null;
+            }
+            // Restart with new settings
+            await initMedia(true); 
+            
+            // Re-negotiate with peers (Optional but recommended)
+            // For now, replacing tracks in existing connections:
+            const videoTrack = localStream.getVideoTracks()[0];
+            const audioTrack = localStream.getAudioTracks()[0];
+            
+            for (const pc of Object.values(peerConnections)) {
+                const senders = pc.getSenders();
+                const vSender = senders.find(s => s.track && s.track.kind === 'video');
+                const aSender = senders.find(s => s.track && s.track.kind === 'audio');
+                if(vSender && videoTrack) vSender.replaceTrack(videoTrack);
+                if(aSender && audioTrack) aSender.replaceTrack(audioTrack);
+            }
+        }
+    }
+
+    // --- CONFIGURABLE MEDIA INIT ---
     async function initMedia(videoEnabled) {
         try {
             if (!localStream) {
+                
+                // 1. GET USER PREFERENCES
+                const qualityVal = document.getElementById("set-quality").value;
+                const fpsVal = parseInt(document.getElementById("set-fps").value);
+                const audioVal = document.getElementById("set-audio").value;
 
-                // IF AUDIO ONLY (Skip Beauty Filter) ---
-                if (!videoEnabled) {
-                    localStream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: true, 
-                        video: false 
-                    });
-                    return; // Stop here! Don't do canvas logic.
+                // 2. DEFINE CONSTRAINTS BASED ON SELECTION
+                
+                // Video Resolution Map
+                const resMap = {
+                    'fhd': { width: 1920, height: 1080 },
+                    'hd':  { width: 1280, height: 720 },
+                    'vga': { width: 640, height: 480 }
+                };
+                const targetRes = resMap[qualityVal];
+
+                // Audio Constraints Map
+                // Low = aggressive compression/noise suppression
+                // High = nearly raw audio
+                let audioConstraints = {};
+                if (audioVal === 'high') {
+                    audioConstraints = { 
+                        echoCancellation: false, 
+                        noiseSuppression: false, 
+                        autoGainControl: false,
+                        sampleRate: 48000,
+                        sampleSize: 16 
+                    };
+                } else if (audioVal === 'med') {
+                    audioConstraints = { 
+                        echoCancellation: true, 
+                        noiseSuppression: true, 
+                        autoGainControl: true,
+                        sampleRate: 44100 
+                    };
+                } else { // Low
+                    audioConstraints = { 
+                        echoCancellation: true, 
+                        noiseSuppression: true, 
+                        autoGainControl: true, 
+                        sampleRate: 16000, // Reduced sample rate
+                        channelCount: 1    // Mono
+                    };
                 }
 
-                // 1. Get Camera (Fixed for Desktop Compatibility)
-                let rawStream;
-                try {
-                    // Attempt A: Request "User" camera (Good for Mobile)
-                    rawStream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: true, 
-                        video: { facingMode: "user" } 
+                if (!videoEnabled) {
+                    localStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: audioConstraints, 
+                        video: false 
                     });
+                    return; 
+                }
+
+                // 3. APPLY CONSTRAINTS
+                const mediaConstraints = {
+                    audio: audioConstraints,
+                    video: {
+                        facingMode: "user",
+                        width: { ideal: targetRes.width }, 
+                        height: { ideal: targetRes.height },
+                        frameRate: { ideal: fpsVal, max: fpsVal } 
+                    }
+                };
+
+
+                try {
+                    rawStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
                 } catch (e) {
-                    // Attempt B: Fallback to ANY camera (Required for Desktop)
-                    console.warn("User camera not found, falling back to default...", e);
+                    console.warn("Requested quality failed, falling back to VGA...", e);
                     rawStream = await navigator.mediaDevices.getUserMedia({ 
                         audio: true, 
                         video: true 
                     });
                 }
 
-                // 2. Play Raw Video (Hidden)
+                // 5. PLAY RAW
                 const rawVideo = document.getElementById('rawVideo');
                 rawVideo.srcObject = rawStream;
-                // Use playsInline to prevent fullscreen on iOS
                 rawVideo.setAttribute("playsinline", true); 
                 await rawVideo.play();
 
-                // 3. Setup Canvas
+                // 6. SETUP CANVAS
                 const canvas = document.getElementById('processorCanvas');
-                const ctx = canvas.getContext('2d');
+                const ctx = canvas.getContext('2d', { alpha: false });
 
-                // 4. Processing Loop (Checks Orientation Every Frame)
+                // 7. PROCESS LOOP
                 function processFrame() {
                     if (rawVideo.paused || rawVideo.ended) return;
 
-                    // 🔄 AUTO-RESIZE: If phone rotates, update canvas size immediately
                     if (canvas.width !== rawVideo.videoWidth || canvas.height !== rawVideo.videoHeight) {
                         canvas.width = rawVideo.videoWidth;
                         canvas.height = rawVideo.videoHeight;
                     }
-                    
-                    // Apply Filter
-                    // Ensure 'filters' and 'currentFilterIndex' exist in your global scope
-                    if (typeof filters !== 'undefined' && typeof currentFilterIndex !== 'undefined') {
-                        ctx.filter = filters[currentFilterIndex];
+
+                    if (typeof filters !== 'undefined' && typeof currentFilterIndex !== 'undefined' && currentFilterIndex !== 0) {
+                        ctx.filter = typeof filters[currentFilterIndex] === 'object' 
+                                     ? filters[currentFilterIndex].color 
+                                     : filters[currentFilterIndex];     
+                    } else {
+                        ctx.filter = "none";
                     }
                     
-                    // Draw
                     ctx.drawImage(rawVideo, 0, 0, canvas.width, canvas.height);
-                    
                     requestAnimationFrame(processFrame);
                 }
                 processFrame();
 
-                // 5. Capture Stream (FPS set to 30 for smoothness)
-                const canvasStream = canvas.captureStream(30);
+                // 8. CAPTURE AT SELECTED FPS
+                const canvasStream = canvas.captureStream(fpsVal); 
                 
-                // Add Audio Track back (Important: canvasStream usually has no audio)
                 const audioTrack = rawStream.getAudioTracks()[0];
                 if (audioTrack) canvasStream.addTrack(audioTrack);
 
                 localStream = canvasStream;
                 
-                // Show Local Video
                 const videoEl = document.getElementById("localVideo");
                 videoEl.srcObject = localStream;
-                videoEl.className = ''; // Remove CSS filters since we are processing in Canvas
+                videoEl.className = ''; 
             }
         } catch (e) {
             console.error(e);
-            let msg = e.message;
-            if (e.name === "NotFoundError" || e.name === "DevicesNotFoundError") {
-                msg = "No camera found. Please check your device.";
-            } else if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
-                msg = "Permission denied. Please allow camera access.";
-            }
-            alert("Error: " + msg);
+            alert("Error: " + e.message);
             cleanupCall();
         }
     }
 
     function createPeerConnection(peerName) {
         if (peerConnections[peerName]) return peerConnections[peerName];
+
         const pc = new RTCPeerConnection(rtcConfig);
         peerConnections[peerName] = pc;
-        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+        // Add my local stream to the connection
+        if (localStream) {
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        }
+
+        // When their stream arrives, create the video element
         pc.ontrack = event => {
-            const remoteVid = document.getElementById("remoteVideo");
-            if (remoteVid.srcObject !== event.streams[0]) remoteVid.srcObject = event.streams[0];
+            // Use stream[0]
+            if (event.streams && event.streams[0]) {
+                addRemoteVideo(peerName, event.streams[0]);
+            }
         };
+
         pc.onicecandidate = event => {
-            if (event.candidate) sendSignal({ type: 'candidate', candidate: event.candidate }, peerName);
+            if (event.candidate) {
+                sendSignal({ type: 'candidate', candidate: event.candidate }, peerName);
+            }
         };
-        pc.onconnectionstatechange = () => {
-            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') delete peerConnections[peerName];
-        };
+
         return pc;
+    }
+
+
+    // 7. GRID HELPERS
+    function addRemoteVideo(peerName, stream) {
+        const grid = document.getElementById("video-grid");
+        
+        // Prevent duplicates
+        if (document.getElementById(`wrapper-${peerName}`)) return;
+
+        // Create Container
+        const wrapper = document.createElement("div");
+        wrapper.className = "remote-video-wrapper"; // Uses your existing CSS
+        wrapper.id = `wrapper-${peerName}`;
+
+        // Create Video
+        const video = document.createElement("video");
+        video.autoplay = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+
+        // Create Name Label
+        const label = document.createElement("div");
+        label.className = "remote-label";
+        label.innerText = peerName;
+
+        wrapper.appendChild(video);
+        wrapper.appendChild(label);
+        grid.appendChild(wrapper);
+    }
+
+    function removeRemoteVideo(peerName) {
+        const wrapper = document.getElementById(`wrapper-${peerName}`);
+        if (wrapper) wrapper.remove();
     }
 
     function cleanupCall() {
         document.getElementById("video-container").style.display = "none";
+        document.getElementById("video-grid").innerHTML = ""; // Clear Grid
         stopRing();
-        for (const pc of Object.values(peerConnections)) pc.close();
+        
+        // 1. Close all Peer Connections (Network)
+        for (const key in peerConnections) {
+            peerConnections[key].close();
+        }
         for (const key in peerConnections) delete peerConnections[key];
+
+        // 2. STOP HARDWARE CAMERA (Crucial for turning off the light)
+        // We grab the stream directly from the hidden video element
+        const rawVideo = document.getElementById('rawVideo');
+        if (rawVideo.srcObject) {
+            const tracks = rawVideo.srcObject.getTracks();
+            tracks.forEach(track => track.stop()); // This kills the hardware access
+            rawVideo.srcObject = null;
+        }
+
+        // 3. STOP PROCESSED STREAM (Canvas + Audio)
         if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
             localStream = null;
         }
+
         activeCall = false;
     }
 
@@ -1034,6 +1609,130 @@
         document.getElementById("sidebar").classList.toggle("active");
         document.getElementById("overlay").classList.toggle("active");
     }
+
+    // --- MENU TOGGLE & CLICK OUTSIDE LOGIC ---
+    function toggleMoreMenu() {
+        const menu = document.getElementById("more-menu");
+        // Simple toggle
+        if (menu.style.display === "flex") {
+            menu.style.display = "none";
+        } else {
+            menu.style.display = "flex";
+        }
+    }
+
+    // LISTENER: Closes menu ONLY if clicking outside
+    document.addEventListener('click', function(e) {
+        const menu = document.getElementById("more-menu");
+        const btn = document.getElementById("btn-more");
+
+        if (menu.style.display !== "flex") return;
+
+        if (menu.contains(e.target)) return;
+
+        if (btn.contains(e.target)) return;
+
+        menu.style.display = "none";
+    });
+
+
+    // --- FLASH / FACE LIGHT LOGIC ---
+    const flashModes = [
+        { color: '#111', icon: '🔦', name: 'Off' },       // Default Dark
+        { color: '#ffffff', icon: '💡', name: 'Bright' }, // Max Brightness
+        { color: '#ffe4b5', icon: '🌅', name: 'Warm' },   // Warm (Moccasin)
+        { color: '#e0ffff', icon: '❄️', name: 'Cool' },   // Cool (LightCyan)
+        { color: '#ffcfb3', icon: '🧖', name: 'Skin' },    // Skin/Peach Glow (Flattering)
+        // --- PROFESSIONAL GELS ---
+        { color: '#ffb74d', icon: '🟠', name: 'CTO' },      // Orange (Tungsten Match)
+        { color: '#90ee90', icon: '🟢', name: 'CTG' },      // Green (Fluorescent Match)
+        { color: '#4fc3f7', icon: '🔵', name: 'CTB' }       // Blue (Daylight/Moon Match)
+    ];
+    
+    let currentFlashIndex = 0;
+
+    function cycleFlash() {
+        currentFlashIndex = (currentFlashIndex + 1) % flashModes.length;
+        const mode = flashModes[currentFlashIndex];
+
+        // 1. Apply Background
+        document.getElementById("video-container").style.background = mode.color;
+
+        // 2. Update Menu Icon & Text
+        const iconSpan = document.getElementById("menu-icon-flash");
+        const textSpan = document.getElementById("menu-text-flash");
+        if(iconSpan) iconSpan.innerText = mode.icon;
+        if(textSpan) textSpan.innerText = `Flash: ${mode.name}`;
+
+        showToast(`Flash: ${mode.name}`);
+    }
+
+    // --- PICTURE IN PICTURE LOGIC ---
+    async function togglePiP() {
+        // 1. Try Document Picture-in-Picture (Desktop Chrome/Edge)
+        // This pops out the WHOLE grid div, keeping layout and names.
+        if ('documentPictureInPicture' in window) {
+            try {
+                const pipWindow = await documentPictureInPicture.requestWindow({
+                    width: 800,
+                    height: 600,
+                });
+
+                // Move the Grid into the new Window
+                const grid = document.getElementById("video-grid");
+                pipWindow.document.body.append(grid);
+
+                // Copy styles so the grid looks correct in the new window
+                // We copy all <style> and <link rel="stylesheet"> tags
+                [...document.styleSheets].forEach((styleSheet) => {
+                    try {
+                        if (styleSheet.href) { // External CSS
+                            const link = document.createElement('link');
+                            link.rel = 'stylesheet';
+                            link.href = styleSheet.href;
+                            pipWindow.document.head.appendChild(link);
+                        } else { // Internal CSS (<style>)
+                            const cssRules = [...styleSheet.cssRules].map(r => r.cssText).join('');
+                            const style = document.createElement('style');
+                            style.textContent = cssRules;
+                            pipWindow.document.head.appendChild(style);
+                        }
+                    } catch (e) { console.log(e); }
+                });
+
+                // Listen for close event to bring grid back
+                pipWindow.addEventListener("pagehide", (event) => {
+                    const container = document.getElementById("video-container");
+                    const localWrapper = document.getElementById("localVideoWrapper");
+                    // Insert grid back into original container
+                    container.insertBefore(grid, localWrapper); 
+                });
+                
+                return; // Success
+            } catch (err) {
+                console.log("Document PiP failed, trying standard...", err);
+            }
+        }
+
+        // 2. Fallback: Standard PiP (Mobile / Firefox / Safari)
+        // This only floats ONE video stream. We pick the first remote user, or you.
+        const remoteVideos = document.querySelectorAll("#video-grid video");
+        const targetVideo = remoteVideos.length > 0 ? remoteVideos[0] : document.getElementById("localVideo");
+
+        try {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+            } else if (targetVideo && targetVideo.readyState >= 1) {
+                await targetVideo.requestPictureInPicture();
+            } else {
+                 showToast("Video not ready for PiP");
+            }
+        } catch (error) {
+            console.error("Standard PiP failed:", error);
+            showToast("PiP not supported");
+        }
+    }
+
 </script>
 </body>
 </html>
